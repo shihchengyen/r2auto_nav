@@ -121,7 +121,7 @@ class AutoNav(Node):
         # self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width,order='F'))
         self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width))
         # print to file
-        # np.savetxt(mapfile, self.occdata)
+        np.savetxt(mapfile, self.occdata)
 
 
     def scan_callback(self, msg):
@@ -129,7 +129,7 @@ class AutoNav(Node):
         # create numpy array
         self.laser_range = np.array(msg.ranges)
         # print to file
-        # np.savetxt(scanfile, self.laser_range)
+        np.savetxt(scanfile, self.laser_range)
         # replace 0's with nan
         self.laser_range[self.laser_range==0] = np.nan
 
