@@ -26,6 +26,11 @@ setup(
             'r2occupancy = auto_nav.r2occupancy:main',
             'r2occupancy2 = auto_nav.r2occupancy2:main',
             'r2auto_nav = auto_nav.r2auto_nav:main',
+	        # 'E1_B = auto_nav.E1_B:main',
+            'read_lidar = auto_nav.read_lidar:main',
+            'lidar_1d = auto_nav.lidar_1d:main',
+            'r2way = auto_nav.r2waypoint:main',
+            'r2way_2 = auto_nav.r2waypoint_2:main',
         ],
     },
 )
