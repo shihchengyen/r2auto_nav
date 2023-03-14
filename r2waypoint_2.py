@@ -1,16 +1,23 @@
 # storing way point into excel file
 import rclpy
 from rclpy.node import Node
-from nav_msg.msg import Odometry
+from nav_msgs.msg import Odometry
 class Waypoint(Node):
     def __init__(self) -> None:
         super().__init__('waypoint')
         self.subscription = self.create_subscription(Odometry,'odom',self.odom_callback,10)
         self.subscription
 
-    def odom_callback(self,msg):
-        pos = msg.pose.pose.position
-        self.get_logger().info('i got: "%s"' % pos)
+    def odom_callback(self,msg):        
+        while True:
+            
+            # get keyboard input
+            cmd_char = str(input("Press q to store point: "))
+            if cmd_char == "q":
+                pos = msg.pose.pose.position
+                print(pos)
+        
+
 def main(args=None):
     rclpy.init(args=args)
 
