@@ -106,22 +106,43 @@ class AutoNav(Node):
 
     def occ_callback(self, msg):
         # self.get_logger().info('In occ_callback')
-        # create numpy array
-        msgdata = np.array(msg.data)
-        # compute histogram to identify percent of bins with -1
-        # occ_counts = np.histogram(msgdata,occ_bins)
+        # create numpy array)
+        occdata = np.array(msg.data)
+        # compute histogram to identify bins with -1, values between 0 and below 50, 
+        # and values between 50 and 50. The binned_statistic function will also
+        # return the bin numbers so we can use that easily to create the image 
+        occ_counts, edges, binnum = scipy.stats.binned_statistic(occdata, np.nan, statistic='count', bins=occ_bins)
+        # get width and height of map
+        iwidth = msg.info.width
+        iheight = msg.info.height
         # calculate total number of bins
-        # total_bins = msg.info.width * msg.info.height
+        total_bins = iwidth * iheight
         # log the info
-        # self.get_logger().info('Unmapped: %i Unoccupied: %i Occupied: %i Total: %i' % (occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins))
+        # self.get_logger().info('Unmapped: %i Unoccupied: %i Occupied: %i Total: %i' % (occ_counts[0], occ_counts[1], occ_counts[2], total_bins))
 
-        # make msgdata go from 0 instead of -1, reshape into 2D
-        oc2 = msgdata + 1
-        # reshape to 2D array using column order
-        # self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width,order='F'))
-        self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width))
-        # print to file
-        np.savetxt(mapfile, self.occdata)
+        # binnum go from 1 to 3 so we can use uint8
+        # convert into 2D array using column order
+        self.mazelayout = np.uint8(binnum.reshape(msg.info.height,msg.info.width))
+
+        self.Xpos = int(np.rint((self.mapbase.x - msg.info.origin.position.x)/self.resolution))
+        self.Ypos = int(np.rint((self.mapbase.y - msg.info.origin.position.y)/self.resolution))
+        self.mazelayout[self.Ypos][self.Xpos] = 6
+        # self.mazelayout[self.Ypos][self.Xpos - 5] = 10
+        self.XposNoAdjust = int(np.rint((self.mapbase.x + 5)/self.resolution))
+        self.YposNoAdjust = int(np.rint((self.mapbase.y + 5)/self.resolution))
+        self.Xadjust = msg.info.origin.position.x
+        self.Yadjust = msg.info.origin.position.y
+        img2 = Image.fromarray(self.mazelayout)
+        img = Image.fromarray(np.uint8(self.visitedarray.reshape(300,300)))
+        plt.imshow(img2, cmap='gray', origin='lower')
+        plt.draw_all()
+        # # pause to make sure the plot gets created
+        plt.pause(0.00000000001)
+
+
+
+
+
 
 
     def scan_callback(self, msg):

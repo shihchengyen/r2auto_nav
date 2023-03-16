@@ -1,0 +1,11 @@
+[0.543s] Invoking command in '/home/onx/colcon_ws/src/auto_nav/auto_nav': CONDA_PROMPT_MODIFIER=(base) PYTHONPATH=/home/onx/colcon_ws/src/auto_nav/auto_nav/build/auto_nav/prefix_override:/home/onx/colcon_ws/src/auto_nav/auto_nav/install/auto_nav/lib/python3.8/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base build/auto_nav build --build-base /home/onx/colcon_ws/src/auto_nav/auto_nav/build/auto_nav/build install --record /home/onx/colcon_ws/src/auto_nav/auto_nav/build/auto_nav/install.log --single-version-externally-managed
+[0.701s] running egg_info
+[0.702s] creating build/auto_nav/auto_nav.egg-info
+[0.702s] writing build/auto_nav/auto_nav.egg-info/PKG-INFO
+[0.702s] writing dependency_links to build/auto_nav/auto_nav.egg-info/dependency_links.txt
+[0.702s] writing entry points to build/auto_nav/auto_nav.egg-info/entry_points.txt
+[0.702s] writing requirements to build/auto_nav/auto_nav.egg-info/requires.txt
+[0.702s] writing top-level names to build/auto_nav/auto_nav.egg-info/top_level.txt
+[0.714s] writing manifest file 'build/auto_nav/auto_nav.egg-info/SOURCES.txt'
+[0.745s] error: package directory 'auto_nav' does not exist
+[0.758s] Invoked command in '/home/onx/colcon_ws/src/auto_nav/auto_nav' returned '1': CONDA_PROMPT_MODIFIER=(base) PYTHONPATH=/home/onx/colcon_ws/src/auto_nav/auto_nav/build/auto_nav/prefix_override:/home/onx/colcon_ws/src/auto_nav/auto_nav/install/auto_nav/lib/python3.8/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base build/auto_nav build --build-base /home/onx/colcon_ws/src/auto_nav/auto_nav/build/auto_nav/build install --record /home/onx/colcon_ws/src/auto_nav/auto_nav/build/auto_nav/install.log --single-version-externally-managed

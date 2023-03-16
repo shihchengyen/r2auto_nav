@@ -57,7 +57,7 @@ def euler_from_quaternion(x, y, z, w):
 
     return roll_x, pitch_y, yaw_z # in radians
 
-class AutoNav(Node):
+class pos_nav(Node):
 
     def __init__(self):
         super().__init__('auto_nav')
