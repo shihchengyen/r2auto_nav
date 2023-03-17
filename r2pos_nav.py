@@ -96,7 +96,7 @@ class PosNav(Node):
             Pose,
             'map2base',
             self.map2base_callback,
-            1)
+            5)
         
         # create subscription to track orientation
         self.odom_subscription = self.create_subscription(
@@ -306,7 +306,7 @@ class PosNav(Node):
         print(math.degrees(self.yaw))
         print("og: ",end="")
         print(og_angle)
-        new_angle = (angle_between([self.mapbase.x,self.mapbase.y],[to_x,to_y]) + og_angle)%360
+        new_angle = (angle_between([self.mapbase.x,self.mapbase.y],[to_x,to_y]) - og_angle +360)%360
         print("new: ",end="")
         print(new_angle)
         self.fixed_rotatebot(new_angle)
@@ -319,7 +319,7 @@ class PosNav(Node):
             self.robotforward()
             dist = math.sqrt((self.mapbase.x-to_x)**2 + (self.mapbase.y-to_y)**2)
             print(dist)
-            if dist < 0.01:
+            if dist < 0.2:
                 stop_flag = 1
             rclpy.spin_once(self)
         self.stopbot()
