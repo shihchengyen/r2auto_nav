@@ -27,7 +27,7 @@ import time
 
 # constants
 rotatechange = 0.1
-speedchange = 0.025
+speedchange = 0.05
 occ_bins = [-1, 0, 100, 101]
 stop_distance = 0.25
 front_angle = 30
@@ -36,7 +36,7 @@ scanfile = 'lidar.txt'
 mapfile = 'map.txt'
 
 #checkpoints
-Table1 = [(50,1),(50,50),(90,50)]
+Table1 = [(5,1),(5,5),(9,5)]
 
 
 
@@ -44,15 +44,21 @@ def angle_between(p1, p2):
     print(p1,p2)
     ydiff = p2[1]-p1[1]
     xdiff = p2[0]-p1[0]
-    Rads = math.atan2(ydiff,xdiff)
+    angle = math.degrees(math.atan2(abs(ydiff),abs(xdiff)))
 
-    if xdiff<0:
-        Rads = -math.pi/2 + Rads
+    if xdiff>0:
+        if ydiff>0:
+            angle = 90 - angle
+        else:
+            angle += 90
     else:
-        Rads = math.pi/2 - Rads
-    print(math.degrees(Rads))
+        if ydiff>0:
+            angle += 270
+        else:
+            angle = 270-angle
+    print(angle)
 
-    return math.degrees(Rads)
+    return angle
 
 # code from https://automaticaddison.com/how-to-convert-a-quaternion-into-euler-angles-in-python/
 def euler_from_quaternion(x, y, z, w):
@@ -174,6 +180,7 @@ class PosNav(Node):
         self.roll, self.pitch, self.yaw = euler_from_quaternion(msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w)
 
 
+
     # function to rotate the TurtleBot
     def rotatebot(self, rot_angle):
         # self.get_logger().info('In rotatebot')
@@ -205,7 +212,7 @@ class PosNav(Node):
 
         # we will use the c_dir_diff variable to see if we can stop rotating
         c_dir_diff = c_change_dir
-        # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
+        self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
         # if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
         # becomes -1.0, and vice versa
         while(c_change_dir * c_dir_diff > 0):
@@ -214,68 +221,20 @@ class PosNav(Node):
             current_yaw = self.yaw
             # convert the current yaw to complex form
             c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-            # self.get_logger().info('Current Yaw: %f' % math.degrees(current_yaw))
+            self.get_logger().info('Current Yaw: %f' % math.degrees(current_yaw))
             # get difference in angle between current and target
             c_change = c_target_yaw / c_yaw
             # get the sign to see if we can stop
             c_dir_diff = np.sign(c_change.imag)
-            # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
+            self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
 
         self.get_logger().info('End Yaw: %f' % math.degrees(current_yaw))
         # set the rotation speed to 0
         twist.angular.z = 0.0
         # stop the rotation
-        self.publisher_.publish(twist)\
+        self.publisher_.publish(twist)
+
         
-        # function to rotate the TurtleBot to a fixed angle
-    def fixed_rotatebot(self, rot_angle):
-        # self.get_logger().info('In rotatebot')
-        # create Twist object
-        twist = Twist()
-        current_yaw = self.yaw
-        # we are going to use complex numbers to avoid problems when the angles go from
-        # 360 to 0, or from -180 to 180
-        c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-        # calculate desired yaw
-        target_yaw = math.radians(rot_angle)
-        # convert to complex notation
-        c_target_yaw = complex(math.cos(target_yaw),math.sin(target_yaw))
-        self.get_logger().info('Desired: %f' % math.degrees(cmath.phase(c_target_yaw)))
-        # divide the two complex numbers to get the change in direction
-        c_change = c_target_yaw / c_yaw
-        # get the sign of the imaginary component to figure out which way we have to turn
-        c_change_dir = np.sign(c_change.imag)
-        # set linear speed to zero so the TurtleBot rotates on the spot
-        twist.linear.x = 0.0
-        # set the direction to rotate
-        twist.angular.z = c_change_dir * rotatechange
-        # start rotation
-        self.publisher_.publish(twist)
-
-        # we will use the c_dir_diff variable to see if we can stop rotating
-        c_dir_diff = c_change_dir
-        # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
-        # if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
-        # becomes -1.0, and vice versa
-        while(c_change_dir * c_dir_diff > 0):
-            # allow the callback functions to run
-            rclpy.spin_once(self)
-            current_yaw = self.yaw
-            # convert the current yaw to complex form
-            c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-            # self.get_logger().info('Current Yaw: %f' % math.degrees(current_yaw))
-            # get difference in angle between current and target
-            c_change = c_target_yaw / c_yaw
-            # get the sign to see if we can stop
-            c_dir_diff = np.sign(c_change.imag)
-            # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
-
-        self.get_logger().info('End Yaw: %f' % math.degrees(current_yaw))
-        # set the rotation speed to 0
-        twist.angular.z = 0.0
-        # stop the rotation
-        self.publisher_.publish(twist)
-
 
     def robotforward(self):
         
@@ -287,12 +246,10 @@ class PosNav(Node):
         # not sure if this is really necessary, but things seem to work more
         # reliably with this
         self.publisher_.publish(twist)
-        twist.linear.x = 0.0
-        time.sleep(1.5)
-        self.publisher_.publish(twist)
+
     
 
-    def move_coords(self, to_x, to_y):
+    def cal(self):
         rclpy.spin_once(self)
         og_coords = [self.mapbase.x,self.mapbase.y]
         while ([self.mapbase.x,self.mapbase.y] == og_coords):
@@ -301,33 +258,31 @@ class PosNav(Node):
         self.stopbot()
         time.sleep(5)
         rclpy.spin_once(self)
-        og_angle = angle_between(og_coords,[self.mapbase.x,self.mapbase.y])
-        print("curr: ",end="")
-        print(math.degrees(self.yaw))
-        print("og: ",end="")
-        print(og_angle)
-        new_angle = (angle_between([self.mapbase.x,self.mapbase.y],[to_x,to_y]) - og_angle +360)%360
+        og = angle_between(og_coords,[self.mapbase.x,self.mapbase.y])
+        return og
+    
+
+    def move_coords(self, to_x, to_y,og):
+        rclpy.spin_once(self)
+        new_angle = (angle_between([self.mapbase.x,self.mapbase.y],[to_x,to_y]))
         print("new: ",end="")
         print(new_angle)
-        self.fixed_rotatebot(new_angle)
+        self.rotatebot(new_angle)
         stop_flag = 0
         print("found")
-        print("curr: ",end="")
-        print(math.degrees(self.yaw))
+        self.robotforward()
         while not stop_flag:
             time.sleep(0.1)
-            self.robotforward()
+            rclpy.spin_once(self)
             dist = math.sqrt((self.mapbase.x-to_x)**2 + (self.mapbase.y-to_y)**2)
             print(dist)
             if dist < 0.2:
                 stop_flag = 1
-            rclpy.spin_once(self)
         self.stopbot()
         print("done")
 
 
 
-        
 
 
     def pick_direction(self):
@@ -411,11 +366,14 @@ def main(args=None):
 
     inp = "Go"
     while inp != "Stop":
-        inp = input("Go/Stop/Auto: ")
-        if inp == "Go":
+        inp = input("Go/Stop/Auto/Cal: ")
+        if inp == "Cal":
+            og = auto_nav.cal()
+        elif inp == "Go":
             inc = input("Enter coordinates like x,y: ")
             inc = inc.split(",")
-            auto_nav.move_coords(float(inc[0]),float(inc[1]))
+            #Todo: keep track of old angle
+            og = auto_nav.move_coords(float(inc[0]),float(inc[1]),og)
         elif inp == "Auto":
             auto_nav.mover()
         elif inp == "Stop":
