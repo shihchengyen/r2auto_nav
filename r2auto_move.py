@@ -49,8 +49,8 @@ class Auto_Mover(Node):
         self.x = msg.pose.pose.position.x
         self.y = msg.pose.pose.position.y
         self.orien = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
-        print("callback")
-        print(self.rot_q)
+        # print("callback")
+        # print(self.rot_q)
         
         # points_char = int(input("enter waypoint to travel: "))
     
@@ -75,9 +75,9 @@ class Auto_Mover(Node):
         try:
 
                 while inc_x != 0:
-                    print("while in loop")
+                    # print("while in loop")
                     rclpy.spin_once(self)
-                    print(self.orien)
+                    # print(self.orien)
                     self.orien = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
                     
                     inc_x = goal_x - self.x
