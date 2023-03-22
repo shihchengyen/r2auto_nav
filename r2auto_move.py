@@ -8,7 +8,7 @@ from math import atan2
 import pickle
 with open("waypoints.pickle","rb") as handle:
     waypoints = pickle.load(handle)
-# print(waypoints)
+print(waypoints)
 # print("in in in ")
 rotatechange = 0.1
 speedchange = 0.05
@@ -45,52 +45,63 @@ class Auto_Mover(Node):
             10)
 
     def odom_callback(self, msg):
+        self.rot_q = msg.pose.pose.orientation
+        self.x = msg.pose.pose.position.x
+        self.y = msg.pose.pose.position.y
+        self.orien = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
+        print("callback")
+        print(self.rot_q)
         
-        
-        global theta
-        twist = geometry_msgs.msg.Twist()
-        points_char = int(input("enter waypoint to travel: "))
+        # points_char = int(input("enter waypoint to travel: "))
     
+        # # print("qewagdsfnc")
+        
+        
+
+        
+
+
+    def calling_point(self):
+        points_char = int(input("enter waypoint to travel: "))
+        twist = geometry_msgs.msg.Twist()
         # print("qewagdsfnc")
         
         # rclpy.init_node("speed_controller")
         # r = rclpy.Rate(4)
         goal_x = waypoints[points_char][0][0]
         goal_y = waypoints[points_char][0][1]
+        theta = atan2(goal_y-y,goal_x-x)
         inc_x = 10000000 
         try:
 
-            while inc_x != 0:
-                self.rot_q = msg.pose.pose.orientation
-                angle_to_goal = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
-                self.x = msg.pose.pose.position.x
-                self.y = msg.pose.pose.position.y
-                inc_x = goal_x - self.x
-                # print("x",self.x, "inc",inc_x)
-                inc_y = goal_y - y
+                while inc_x != 0:
+                    print("while in loop")
+                    rclpy.spin_once(self)
+                    print(self.orien)
+                    self.orien = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
+                    
+                    inc_x = goal_x - self.x
 
-                theta = atan2(inc_y,inc_x)
-
-                if abs(angle_to_goal - theta) > 0.1:
-                    print("this one",angle_to_goal)
-                    print("angular",self.rot_q)
-                    # print("theta" ,theta)
-                    twist.linear.x = 0.0
-                    twist.angular.z = 0.3
-                else:
-                    twist.linear.x = 0.5
-                    twist.angular.z = 0.0 
-                self.publisher_.publish(twist)
+                    # print("x",self.x, "inc",inc_x)
+                    inc_y = goal_y - self.y
+                    if abs(self.orien - theta) > 0.1:
+                        print(" in bottom")
+                        twist.angular.z = 0.3
+                        twist.linear.x = 0.0
+                    elif inc_x or inc_y > 0.05:
+                        twist.linear.x = 0.05
+                        twist.angular.z = 0.0
+                    else:
+                        twist.linear.x = 0.0
+                        twist.angular.z = 0.0 
+                    self.publisher_.publish(twist)
         finally:
             # stop moving   
             twist.linear.x = 0.0
             twist.angular.z = 0.0
             self.publisher_.publish(twist)
-
-        
-
-
-    # def calling_point(self):
+       
+       
         # global theta
         # twist = geometry_msgs.msg.Twist()
         # points_char = int(input("enter waypoint to travel: "))
