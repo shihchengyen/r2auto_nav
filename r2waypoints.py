@@ -116,9 +116,10 @@ class Mover(Node):
     def map_callback(self, msg): 
         #print('map_callback')
         #print(msg)
+        # not using for now since using map2base
         position_coords =  msg.info.origin.position
-        self.x_coord = position_coords.x 
-        self.y_coord = position_coords.y
+        #self.x_coord = position_coords.x 
+        #self.y_coord = position_coords.y
     
     def map2base_callback(self, msg):
         # self.get_logger().info('In map2basecallback')
@@ -136,9 +137,9 @@ class Mover(Node):
         table_number = input("Enter table number: ") 
         # check if key exist. Exist? Append:Create new entry
         if (table_number not in existing_waypoints):
-            existing_waypoints[table_number] = [{"x":self.x_coord, "y":self.y_coord}]
+            existing_waypoints[table_number] = [{"x":self.mapbase.x, "y":self.mapbase.y}]
         else:
-            existing_waypoints[table_number].append({"x":self.x_coord, "y":self.y_coord})
+            existing_waypoints[table_number].append({"x":self.mapbase.x, "y":self.mapbase.y})
 
         # writing to json file
         f.seek(0)
@@ -204,8 +205,9 @@ class Mover(Node):
         twist = Twist()
         try:
             while True:
-                for i in range(10):
-                    rclpy.spin_once(self)
+                # use loop if using map topic
+                # no need loop if using map2base
+                rclpy.spin_once(self)
                 # get keyboard input
                 cmd_char = str(input("Keys w/x/a/d -/+int s: "))
         
