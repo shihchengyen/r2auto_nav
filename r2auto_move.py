@@ -66,15 +66,15 @@ class Auto_Mover(Node):
         
 
 
-    def travelling_point(self):
-        points_char = int(input("enter waypoint to travel: "))
+    def travelling_point(self, point):
+        # points_char = int(input("enter waypoint to travel: "))
         twist = geometry_msgs.msg.Twist()
         # print("qewagdsfnc")
         
         # rclpy.init_node("speed_controller")
         # r = rclpy.Rate(4)
-        goal_x = waypoints[points_char][0][0]
-        goal_y = waypoints[points_char][0][1]
+        goal_x = waypoints[point][0][0]
+        goal_y = waypoints[point][0][1]
         theta = atan2(goal_y-y,goal_x-x)
         inc_x = 10000000 
         try:
@@ -93,7 +93,7 @@ class Auto_Mover(Node):
                         print("stopping")
                         twist.linear.x = 0.0
                         twist.angular.z = 0.0 
-                        
+                        break
                     elif abs(self.orien - theta) > 0.1:
                         print("angle finding")
                         print(self.orien)
@@ -137,9 +137,21 @@ class Auto_Mover(Node):
             self.publisher_.publish(twist)
        
        
-        
+    def run_combi(self,path): 
+        for point in path:
+                print(path)
+                self.travelling_point(point)   
     def path(self):
-        if 
+        Table = int(input('table number:'))
+        if Table == 1:
+            path = (1,2,3)
+            self.run_combi(path)
+            
+        if Table == 2:
+            path=(2,1,3)
+            self.run_combi(path)
+        
+
 
 def main(args = None):
     try:
