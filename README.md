@@ -18,16 +18,18 @@ Run the following commands in different terminals to test the turtlebot.
 
 Run the following commands in different terminals
 ### Turtlebot Bringup
+```
   ssh ubuntu@(ip-address-of-pi)
   roslaunch turtlebot3_bringup turtlebot3_robot.launch
+```
 ### Run Cartographer
-  ros2 launch turtlebot3_cartographer cartographer.launch.py
+  `ros2 launch turtlebot3_cartographer cartographer.launch.py`
 ### Run Map2Base publisher
-  ros2 run auto_nav map2base
+  `ros2 run auto_nav map2base`
 ### Control the turtlebot to store waypoints
-  ros2 run auto_nav r2waypoints
+  `ros2 run auto_nav r2waypoints`
 ### Run Master Script
-  ros2 run auto_nav master_nav
+  `ros2 run auto_nav master_nav`
 
 
   
