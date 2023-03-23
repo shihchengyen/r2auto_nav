@@ -209,7 +209,7 @@ class Mover(Node):
                 # no need loop if using map2base
                 rclpy.spin_once(self)
                 # get keyboard input
-                cmd_char = str(input("Keys w/x/a/d -/+int s: "))
+                cmd_char = str(input("Keys w/x/a/d/p -/+int s: "))
         
                 # use our own function isnumber as isnumeric 
                 # does not handle negative numbers
@@ -240,7 +240,10 @@ class Mover(Node):
                         twist.linear.x = 0.0
                         twist.angular.z -= rotatechange
                     elif cmd_char == 'p':
-                        self.jsonAdd() 
+                        twist.linear.x = 0.0
+                        twist.angular.z = 0.0
+                        rclpy.spin_once(self)
+                        self.jsonAdd()  
                     # start the movement
                     self.publisher_.publish(twist)
     
