@@ -6,6 +6,7 @@ from nav_msgs.msg import Odometry
 import numpy as np
 from math import atan2
 import pickle
+from math import pi
 with open("waypoints.pickle","rb") as handle:
     waypoints = pickle.load(handle)
 print(waypoints)
@@ -16,6 +17,10 @@ x = 0.0
 y = 0.0 
 rot_q = 0.0 
 theta = 0.0
+# quad_1 = range(0, 0.5 * pi)
+# quad_2 = range (0.5 * pi, pi)
+# quad_3 = range(pi, -0.5 * pi)
+# quad_4 = range(-0.5 * pi, -pi)
 
 # waypoints = {1:[-2.5769601779175844, -1.23103603909631],2:[-2.1849758576303553, -0.5775387034088549]}
 
@@ -61,7 +66,7 @@ class Auto_Mover(Node):
         
 
 
-    def calling_point(self):
+    def travelling_point(self):
         points_char = int(input("enter waypoint to travel: "))
         twist = geometry_msgs.msg.Twist()
         # print("qewagdsfnc")
@@ -84,16 +89,46 @@ class Auto_Mover(Node):
 
                     # print("x",self.x, "inc",inc_x)
                     inc_y = goal_y - self.y
-                    if abs(self.orien - theta) > 0.1:
-                        print(" in bottom")
-                        twist.angular.z = 0.3
-                        twist.linear.x = 0.0
-                    elif inc_x or inc_y > 0.05:
-                        twist.linear.x = 0.05
-                        twist.angular.z = 0.0
-                    else:
+                    if int(abs(goal_x)*100) == int(abs(self.x)*100):
+                        print("stopping")
                         twist.linear.x = 0.0
                         twist.angular.z = 0.0 
+                        
+                    elif abs(self.orien - theta) > 0.1:
+                        print("angle finding")
+                        print(self.orien)
+                        # print("theta", theta)
+                        # if (self.orien  and theta > 0) or (self.orien and theta < 0):
+                        #     print("in 1")
+                        #     if abs(self.orien) > abs(theta):
+                        #         twist.linear.z = 0.3
+                                
+                        #     else: 
+                        #         twist.linear.z = -0.3
+                            
+                        # elif self.orien - theta > self.orien:
+                        #     print("in 2")
+                        #     twist.angular.z = 0.3
+                        #     twist.linear.x = 0.0
+                        # else:
+                        #     print("in 3")
+                        twist.angular.z = 0.3
+                        twist.linear.x = 0.0
+                    elif goal_x != self.x:
+                        print("moving")
+                        print(self.orien)
+                        print("current x", self.x)
+                        print("goal", goal_x)
+                        # print("current y", self.y)
+                        # print("goal", goal_y)
+                        if abs(self.x) > abs(goal_x):
+                            twist.linear.x = -0.05
+                            twist.angular.z = 0.0
+                        else:
+                            twist.linear.x = 0.05
+                            twist.angular.z = 0.0
+
+                    
                     self.publisher_.publish(twist)
         finally:
             # stop moving   
@@ -102,48 +137,16 @@ class Auto_Mover(Node):
             self.publisher_.publish(twist)
        
        
-        # global theta
-        # twist = geometry_msgs.msg.Twist()
-        # points_char = int(input("enter waypoint to travel: "))
-    
-        # print("qewagdsfnc")
-        # theta = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
-        # # rclpy.init_node("speed_controller")
-        # # r = rclpy.Rate(4)
-        # goal_x = waypoints[points_char][0][0]
-        # goal_y = waypoints[points_char][0][1]
-        # inc_x = 10000000 
-        # try:
-
-        #     while inc_x != 0:
-        #         inc_x = goal_x - self.x
-        #         print(self.x, "inc",inc_x)
-        #         inc_y = goal_y - y
-
-        #         angle_to_goal = atan2(inc_y,inc_x)
-
-        #         if abs(angle_to_goal - theta) > 0.1:
-        #             print(angle_to_goal)
-        #             print(x,theta)
-        #             twist.linear.x = 0.0
-        #             twist.angular.z = 0.1
-        #         else:
-        #             twist.linear.x = 0.5
-        #             twist.angular.z = 0.0 
-        #         self.publisher_.publish(twist)
-        # finally:
-        #     # stop moving   
-        #     twist.linear.x = 0.0
-        #     twist.angular.z = 0.0
-        #     self.publisher_.publish(twist)
-
+        
+    def path(self):
+        if 
 
 def main(args = None):
     try:
         rclpy.init(args = args)
         auto_move = Auto_Mover()
         rclpy.spin_once(auto_move)  
-        auto_move.calling_point()
+        auto_move.path()
     except KeyboardInterrupt:
         auto_move.destroy_node()
         rclpy.shutdown()
