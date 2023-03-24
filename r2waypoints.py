@@ -137,6 +137,7 @@ class Mover(Node):
         table_number = input("Enter table number: ") 
         # check if key exist. Exist? Append:Create new entry
         if (table_number not in existing_waypoints):
+            print('not in existing_waypoints')
             existing_waypoints[table_number] = [{"x":self.mapbase.x, "y":self.mapbase.y}]
         else:
             existing_waypoints[table_number].append({"x":self.mapbase.x, "y":self.mapbase.y})
