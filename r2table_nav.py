@@ -28,9 +28,9 @@ import json
 
 # constants
 ROTATECHANGE = 0.1
-SPEEDCHANGE = 0.1
+SPEEDCHANGE = 0.08
 OCC_BINS = [-1, 0, 100, 101]
-STOP_DISTANCE = 0.05
+STOP_DISTANCE = 0.04
 FRONT_ANGLE = 30
 FRONT_ANGLES = range(-FRONT_ANGLE,FRONT_ANGLE+1,1)
 WP_FILE = "waypoints.json"
@@ -173,15 +173,20 @@ class TableNav(Node):
         self.get_logger().info('Desired: %f' % math.degrees(cmath.phase(c_target_yaw)))
         # divide the two complex numbers to get the change in direction
         c_change = c_target_yaw / c_yaw
+        print("c_change: " + str(c_change))
         # get the sign of the imaginary component to figure out which way we have to turn
         c_change_dir = np.sign(c_change.imag)
+        print("c_change_dir: " + str(c_change_dir))
         # set linear speed to zero so the TurtleBot rotates on the spot
         twist.linear.x = 0.0
+        print("linear.x = 0")
         # set the direction to rotate
         twist.angular.z = c_change_dir * ROTATECHANGE
+        print("c_change_dir: " + str(c_change_dir))
         # start rotation
         self.publisher_.publish(twist)
 
+        print("published twist")
         # we will use the c_dir_diff variable to see if we can stop rotating
         c_dir_diff = c_change_dir
         # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
@@ -241,7 +246,7 @@ class TableNav(Node):
         self.publisher_.publish(twist)
 
     def distance_to(self, goal):
-        rclpy.spin_once(self)
+        rclpy.spin_once(self) 
         x_diff = goal['x'] - self.mapbase.x
         y_diff = goal['y'] - self.mapbase.y
         distance = math.sqrt(x_diff ** 2 + y_diff ** 2)
@@ -259,8 +264,9 @@ class TableNav(Node):
 
     def moveToTable(self, table_number):
         twist = Twist()
-        for waypoint in EXISTING_WAYPOINTS[table_number]: 
+        for index, waypoint in enumerate(EXISTING_WAYPOINTS[table_number]): 
             rclpy.spin_once(self) 
+            self.get_logger().info('Current waypoint target: %d' % index)
             self.rotatebot(self.angle_to(waypoint) - math.degrees(self.yaw))
             while self.distance_to(waypoint) > STOP_DISTANCE:
                 rclpy.spin_once(self)
