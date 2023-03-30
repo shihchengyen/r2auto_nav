@@ -2,8 +2,9 @@ import math
 import rclpy
 from rclpy.node import Node
 # from rclpy.executors import MultiThreadedExecutor
-# from rclpy.qos import qos_profile_sensor_data
-# from sensor_msgs.msg import LaserScan
+from rclpy.qos import qos_profile_sensor_data
+from nav_msgs.msg import OccupancyGrid
+from sensor_msgs.msg import LaserScan
 import geometry_msgs.msg
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
@@ -26,6 +27,8 @@ y = 0.0
 
 theta = 0.0
 table = 0
+paths = {2:[1,2],3:[1,2],4:[3],5:[3,4]}
+print(waypoints)
 # quad_1 = range(0, 0.5 * pi)
 # quad_2 = range (0.5 * pi, pi)
 # quad_3 = range(pi, -0.5 * pi)
@@ -50,10 +53,12 @@ def euler_from_quaternion(x, y, z, w):
     
 class Auto_Mover(Node):
     orien = -1.1
+    front  = 5.0
+    dis = 0.0
     def __init__(self):
         self.table = 0
         self.x = -1
-        self.y = -1
+        self.y =-1
         
          
         super().__init__('auto_mover')
@@ -64,11 +69,25 @@ class Auto_Mover(Node):
             'odom',
             self.odom_callback,
             10)
-        # self.subscription = self.create_subscription(
-        #     LaserScan,
-        #     'scan',
-        #     self.listener_callback,
-        #     qos_profile_sensor_data)        
+        self.occ_subscription = self.create_subscription(
+            OccupancyGrid,
+            'map',
+            self.occ_callback,
+            qos_profile_sensor_data)
+        self.occ_subscription
+        self.subscription = self.create_subscription(
+            LaserScan,
+            'scan',
+            self.scan_callback,
+            qos_profile_sensor_data)  
+    # def scan_callback(self,msg):
+    #      self.laser_range = np.array(msg.ranges)
+    #      self.laser_range[self.laser_range==0] = np.nan
+    #      self.front = self.laser_range[0]
+    def occ_callback(self,msg):
+        # print("in odom ", msg)
+        self.msgdata = np.array(msg.data)  
+        # print(self.msgdata)  
         
     def odom_callback(self, msg):
         # print("odom")
@@ -78,23 +97,19 @@ class Auto_Mover(Node):
         self.orien = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
     
     def user_sub(self, msg):
-        # print("user")
-        # print(msg)
-        # self.table = 0
         self.table = int(msg.data)
-        # print(self.table)
-        # self.get_logger().info("table: %s" % msg.data)
 
-    def listener_callback(self, msg):
+    def scan_callback(self, msg):
         # create numpy array
         laser_range = np.array(msg.ranges)
         positive_range = laser_range[-15:-1]
+        # print(laser_range[0])
         # taken_range = np.add(taken_range, laser_range[0:16])
-        
         other_range = (laser_range[0:14])
         taken_range = np.append(other_range , positive_range)
         laser_range[laser_range==0] = np.nan
         # find index with minimum value
+        self.front = laser_range[0]
         lr2i = np.nanargmin(taken_range)
         self.dis = taken_range[lr2i]
         self.angle_go = math.radians(lr2i)
@@ -102,13 +117,14 @@ class Auto_Mover(Node):
         # self.get_logger().info('Shortest distance at %i degrees' % lr2i)
 
     def travelling_point(self, point):
+        print("in traveling point")
         twist = geometry_msgs.msg.Twist()
         goal_x = waypoints[point][0][0]
         goal_y = waypoints[point][0][1]
         theta = atan2(goal_y-y,goal_x-x)
         inc_x = 10000000 
         try:
-                while inc_x != 0:
+                 while inc_x != 0:
                     # print("while in loop")
                     rclpy.spin_once(self)
                     # print(self.orien)
@@ -123,20 +139,33 @@ class Auto_Mover(Node):
                         twist.linear.x = 0.0
                         twist.angular.z = 0.0 
                         break
-                    
-                    elif goal_x != self.x:
-                        if int(abs(self.x)*100) > int(abs(goal_x)*100):
-                            twist.linear.x = -0.1
-                            twist.angular.z = 0.0
-                        else:
-                            twist.linear.x = 0.1
-                            twist.angular.z = 0.0
+
                     elif abs(self.orien - theta) > 0.1:
-                        # print("angle finding")
-                        # print(self.orien)
+                        print("angle finding")
+                        print(self.orien)
+                        print(theta)
                         twist.angular.z = 0.3
                         twist.linear.x = 0.0
 
+                    elif goal_x != self.x:
+                        
+                        if int(abs(self.x)*100) > int(abs(goal_x)*100):
+                            print(point)
+                            print("current",int(abs(self.x)*100))
+                            print("goal",int(abs(goal_x)*100))
+                            twist.linear.x = -0.1
+                            twist.angular.z = 0.0
+                            self.publisher_.publish(twist)
+                            if int(abs(self.x)*100) -  int(abs(goal_x)*100) <=1:
+                                print("stopping ish")
+                                print("current",int(abs(self.x)*100))
+                                print("goal",int(abs(goal_x)*100))
+                                break
+                        else:
+                            twist.linear.x = 0.1
+                            twist.angular.z = 0.0
+                    
+                    
                     self.publisher_.publish(twist)
         finally:
             # stop moving   
@@ -144,29 +173,60 @@ class Auto_Mover(Node):
             twist.angular.z = 0.0
             self.publisher_.publish(twist)
        
-       
-    def run_combi(self,path): 
+    def move_straight(self): 
         twist = geometry_msgs.msg.Twist()
-        for point in path:
-                print("point",point)
-                self.travelling_point(point) 
-        sleep(2)
-        for point in path[::-1]:
-            #   print("point",point)
-              self.travelling_point(point) 
-   
-    def path(self):
-        Table = self.table
-        # print("table:",self.table)
-        # Table = int(input("table numer: "))
-        if Table == 1:
-            path = [2,3,1]
-            self.run_combi(path)
-            
-        if Table == 2:
-            path=[1,3,2]
-            self.run_combi(path)
+        rclpy.spin_once(self)
+        # print(self.front)
+        # print(self.dis)
+        twist.linear.x = 0.1
+        self.publisher_.publish(twist)
         
+    def run_combi(self,path): 
+        for point in path:
+            print("point",point)
+            self.travelling_point(point) 
+        # sleep(2)
+        # for point in path[::-1]:
+        #     #   print("point",point)
+        #       self.travelling_point(point) 
+
+    def path(self):
+        twist = geometry_msgs.msg.Twist()
+        Table = self.table
+        # Table = int(input("table numer: "))
+        try:
+            if Table == 1:
+                while self.front > 0.5:
+                    self.move_straight()
+                twist.linear.x = 0.0
+                print("stop") 
+                
+            if Table == 2 or 3 or 4 or 5:
+                path = paths[Table]
+                print(path)
+                self.run_combi(path)
+            #     while abs(self.orien - math.pi)  > 1:
+            #         rclpy.spin_once(self)
+            #         # print("orien", self.orien)
+            #         # print("diff",abs(self.orien - math.pi))
+            #         if Table == 2 or 4 or 5:
+            #             twist.angular.z = 0.3
+            #         else:
+            #             twist.angular.z = -0.3
+            #         self.publisher_.publish(twist)
+            #     while self.front > 0.2:
+            #         self.move_straight()
+            #     twist.linear.x = 0.0
+            #     print("stop")
+            # self.publisher_.publish(twist)
+            
+
+        finally:
+            # stop moving   
+            twist.linear.x = 0.0
+            twist.angular.z = 0.0
+            self.publisher_.publish(twist)
+    
 
 
 def main(args = None):
