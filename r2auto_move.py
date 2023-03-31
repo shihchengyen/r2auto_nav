@@ -27,7 +27,7 @@ y = 0.0
 
 theta = 0.0
 table = 0
-paths = {2:[1,2],3:[1,2],4:[3],5:[3,4]}
+paths = {2:[2],3:[2],4:[3],5:[4]}
 print(waypoints)
 # quad_1 = range(0, 0.5 * pi)
 # quad_2 = range (0.5 * pi, pi)
@@ -140,28 +140,35 @@ class Auto_Mover(Node):
                         twist.angular.z = 0.0 
                         break
 
-                    elif abs(self.orien - theta) > 0.1:
-                        print("angle finding")
-                        print(self.orien)
-                        print(theta)
+                    elif abs(int(abs(self.orien)*100) - int(abs(theta)*100)) >= 5:
+                        # print("angle finding")
+                        print(int(abs(self.orien)*100))
+                        print(int(abs(theta)*100))
+                        print(int(abs(self.orien)*100) - int(abs(theta)*100))
                         twist.angular.z = 0.3
                         twist.linear.x = 0.0
+                        self.publisher_.publish(twist)
+                        
+                            
+
 
                     elif goal_x != self.x:
                         
                         if int(abs(self.x)*100) > int(abs(goal_x)*100):
-                            print(point)
+                            # print(point)
+                            print("moving b")
                             print("current",int(abs(self.x)*100))
                             print("goal",int(abs(goal_x)*100))
                             twist.linear.x = -0.1
                             twist.angular.z = 0.0
                             self.publisher_.publish(twist)
                             if int(abs(self.x)*100) -  int(abs(goal_x)*100) <=1:
-                                print("stopping ish")
-                                print("current",int(abs(self.x)*100))
-                                print("goal",int(abs(goal_x)*100))
+                                # print("stopping ish")
+                                # print("current",int(abs(self.x)*100))
+                                # print("goal",int(abs(goal_x)*100))
                                 break
                         else:
+                            print("moving f")
                             twist.linear.x = 0.1
                             twist.angular.z = 0.0
                     
