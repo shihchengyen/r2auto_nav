@@ -31,7 +31,10 @@ Run the following commands in different terminals to test the turtlebot.
   //TODO
 
 ## Start the mission 
-
+ENSURE that the ip address in the ESP32 and TableNumber.py is what is displayed by the broker in terminal after running.
+```
+hostname -I.
+```
 Run the following commands in different terminals
 ### Turtlebot Bringup
 ```
@@ -45,6 +48,10 @@ Run the following commands in different terminals
 ### Run Map2Base publisher
 ```
   ros2 run auto_nav map2base
+```
+### Run TableNumber publisher
+```
+  ros2 run auto_nav tableNumber
 ```
 ### Control the turtlebot to store waypoints
 ```
