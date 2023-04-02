@@ -134,13 +134,16 @@ class Mover(Node):
 
         # print("existing waypoints", existing_waypoints)
 
-        table_number = input("Enter table number: ") 
-        # check if key exist. Exist? Append:Create new entry
-        if (table_number not in existing_waypoints):
-            print('not in existing_waypoints')
-            existing_waypoints[table_number] = [{"x":self.mapbase.x, "y":self.mapbase.y}]
-        else:
-            existing_waypoints[table_number].append({"x":self.mapbase.x, "y":self.mapbase.y})
+        all_table_number = int(input("Enter table number: ")) 
+        while (all_table_number > 0) :
+            # check if key exist. Exist? Append:Create new entry
+            table_number = str(all_table_number % 10)
+            if (table_number not in existing_waypoints):
+                print('not in existing_waypoints')
+                existing_waypoints[table_number] = [{"x":self.mapbase.x, "y":self.mapbase.y}]
+            else:
+                existing_waypoints[table_number].append({"x":self.mapbase.x, "y":self.mapbase.y})
+            all_table_number = all_table_number // 10
 
         # writing to json file
         f.seek(0)
