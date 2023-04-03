@@ -141,7 +141,7 @@ class Auto_Mover(Node):
         inc_x = 10000000 
         try:
 
-                while inc_x != 0:
+                while inc_x or inc_y!= 0:
                     # print("while in loop")
                     rclpy.spin_once(self)
                     # print(self.orien)
@@ -151,7 +151,7 @@ class Auto_Mover(Node):
 
                     # print("x",self.x, "inc",inc_x)
                     inc_y = goal_y - self.y
-                    if int(abs(goal_x)*100) == int(abs(self.x)*100):
+                    if int(abs(goal_x)*100) == int(abs(self.x)*100) and int(abs(goal_y)*100) == int(abs(self.y)*100):
                         print("stopping")
                         twist.linear.x = 0.0
                         twist.angular.z = 0.0 
