@@ -16,6 +16,8 @@ with open("waypoints.pickle","rb") as handle:
     waypoints = pickle.load(handle)
 
 print(waypoints)
+mapfile = 'map.txt'
+
 paths = {2:[2],3:[2],4:[3],5:[4]}
 print("in in in ")
 count = 0
@@ -57,12 +59,39 @@ class Auto_Mover(Node):
             'odom',
             self.odom_callback,
             10)
-        
+        self.occ_subscription = self.create_subscription(
+            OccupancyGrid,
+            'map',
+            self.occ_callback,
+            qos_profile_sensor_data)
+        self.occ_subscription  # prevent unused variable warning
+        self.occdata = np.array([])
+
         self.subscription = self.create_subscription(
             LaserScan,
             'scan',
             self.scan_callback,
             qos_profile_sensor_data)  
+
+    def occ_callback(self,msg):
+        msgdata = np.array(msg.data)
+        # compute histogram to identify percent of bins with -1
+        # occ_counts = np.histogram(msgdata,occ_bins)
+        # calculate total number of bins
+        # total_bins = msg.info.width * msg.info.height
+        # log the info
+        # self.get_logger().info('Unmapped: %i Unoccupied: %i Occupied: %i Total: %i' % (occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins))
+
+        # make msgdata go from 0 instead of -1, reshape into 2D
+        oc2 = msgdata + 1
+        # reshape to 2D array using column order
+        # self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width,order='F'))
+        self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width))
+        # print to file
+        print(msg)
+        np.savetxt(mapfile, self.occdata)
+
+
     def odom_callback(self, msg):
         print("callback")
         self.rot_q = msg.pose.pose.orientation
@@ -75,6 +104,7 @@ class Auto_Mover(Node):
         # points_char = int(input("enter waypoint to travel: "))
     
         # # print("qewagdsfnc")
+    
         
     def user_sub(self, msg):
         self.table = int(msg.data)
@@ -130,8 +160,8 @@ class Auto_Mover(Node):
                         print("angle finding")
                         # print(self.orien)
                         # print(self.x)
-                        print(int(abs(self.orien)*100))
-                        print(int(abs(theta)*100))
+                        # print(int(abs(self.orien)*100))
+                        # print(int(abs(theta)*100))
                         # # print("theta", theta)
                         # if (self.orien  and theta > 0) or (self.orien and theta < 0):
                         #     print("in 1")
@@ -150,9 +180,9 @@ class Auto_Mover(Node):
                         twist.angular.z = 0.3
                         twist.linear.x = 0.0
                     elif goal_x != self.x:
-                        print("moving")
-                        print("current x", self.x)
-                        print("goal", goal_x)
+                        # print("moving")
+                        # print("current x", self.x)
+                        # print("goal", goal_x)
                         # print("current y", self.y)
                         # print("goal", goal_y)
                         if abs(self.x) > abs(goal_x):
@@ -169,7 +199,9 @@ class Auto_Mover(Node):
             twist.linear.x = 0.0
             twist.angular.z = 0.0
             self.publisher_.publish(twist)
-
+    def run_combi(self,paths):
+        for point in paths:
+            self.travelling_point(point)
     def path(self):
         twist = geometry_msgs.msg.Twist()
         if self.count == 0:
@@ -190,21 +222,22 @@ class Auto_Mover(Node):
             if Table == 2 or 3 or 4 or 5 :
                 for points in paths[Table]:
                     self.travelling_point(points)
-                    if Table == 3:
-                        while abs(int(self.orien*100)) <=299 :
-                            twist.angular.z = 0.3
-                            self.publisher_.publish(twist)
-                    else:
-                        while abs(int(self.orien*100)) >=2 :
-                            twist.angular.z = 0.3
-                            self.publisher_.publish(twist)
-                    while self.front > 0.2:
-                        twist.linear.x = 0.3
-                        twist.angular.z = 0.0
+                if Table == 3:
+                    while abs(int(self.orien*100)) <=299 :
+                        twist.angular.z = 0.3
                         self.publisher_.publish(twist)
-                    if self.front <= 0.2:
-                        twist.linear.x =0.0
-
+                else:
+                    while abs(int(self.orien*100)) >=2 :
+                        twist.angular.z = 0.3
+                        self.publisher_.publish(twist)
+                while self.front > 0.2:
+                    twist.linear.x = 0.3
+                    twist.angular.z = 0.0
+                    self.publisher_.publish(twist)
+                if self.front <= 0.2:
+                    twist.linear.x =0.0
+                for point    in paths[::-1]:
+                    self.travelling_point(point)
 
                     
                     
