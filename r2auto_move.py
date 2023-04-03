@@ -48,6 +48,7 @@ class Auto_Mover(Node):
     rot_q = 0.0
     orien = 0.0
     count = 0
+    front =0.0
     def __init__(self) -> None:
         self.x = -1
         self.y = -1
@@ -93,7 +94,7 @@ class Auto_Mover(Node):
 
 
     def odom_callback(self, msg):
-        print("callback")
+        # print("callback")
         self.rot_q = msg.pose.pose.orientation
         self.x = msg.pose.pose.position.x
         self.y = msg.pose.pose.position.y
@@ -129,6 +130,7 @@ class Auto_Mover(Node):
 
 
     def travelling_point(self, point):
+        print("in tavelling")
         # points_char = int(input("enter waypoint to travel: "))
         twist = geometry_msgs.msg.Twist()
         # print("qewagdsfnc")
@@ -141,7 +143,7 @@ class Auto_Mover(Node):
         inc_x = 10000000 
         try:
 
-                while inc_x or inc_y!= 0:
+                while inc_x != 0:
                     # print("while in loop")
                     rclpy.spin_once(self)
                     # print(self.orien)
@@ -151,17 +153,17 @@ class Auto_Mover(Node):
 
                     # print("x",self.x, "inc",inc_x)
                     inc_y = goal_y - self.y
-                    if int(abs(goal_x)*100) == int(abs(self.x)*100) and int(abs(goal_y)*100) == int(abs(self.y)*100):
+                    if int(abs(goal_x)*100) - int(abs(self.x)*100)<=2 :
                         print("stopping")
                         twist.linear.x = 0.0
                         twist.angular.z = 0.0 
                         break
-                    elif abs(self.orien - theta) > 0.1:
+                    if  int(abs(self.orien)*100) - int(abs(theta)*100) >= 1:
                         print("angle finding")
                         # print(self.orien)
                         # print(self.x)
-                        # print(int(abs(self.orien)*100))
-                        # print(int(abs(theta)*100))
+                        print(int(abs(self.orien)*100))
+                        print(int(abs(theta)*100))
                         # # print("theta", theta)
                         # if (self.orien  and theta > 0) or (self.orien and theta < 0):
                         #     print("in 1")
@@ -180,15 +182,17 @@ class Auto_Mover(Node):
                         twist.angular.z = 0.3
                         twist.linear.x = 0.0
                     elif goal_x != self.x:
-                        # print("moving")
-                        # print("current x", self.x)
-                        # print("goal", goal_x)
-                        # print("current y", self.y)
-                        # print("goal", goal_y)
+                        print("moving")
+                        print("current x", self.x)
+                        print("goal", goal_x)
+                        print("current y", self.y)
+                        print("goal", goal_y)
                         if abs(self.x) > abs(goal_x):
+                            print("forward")
                             twist.linear.x = 0.05
                             twist.angular.z = 0.0
                         else:
+                            print('backward')
                             twist.linear.x = -0.05
                             twist.angular.z = 0.0
 
@@ -228,15 +232,22 @@ class Auto_Mover(Node):
                         self.publisher_.publish(twist)
                 else:
                     while abs(int(self.orien*100)) >=2 :
+                        rclpy.spin_once(self)
+                        print(abs(int(self.orien*100)))
                         twist.angular.z = 0.3
                         self.publisher_.publish(twist)
                 while self.front > 0.2:
+                    rclpy.spin_once(self)
+                    print("moving to table")
                     twist.linear.x = 0.3
                     twist.angular.z = 0.0
                     self.publisher_.publish(twist)
                 if self.front <= 0.2:
+                    print("stoping at table")
                     twist.linear.x =0.0
-                for point    in paths[::-1]:
+                    new_path = paths[Table][::-1]
+                    new_path.append(0)
+                for point  in new_path:
                     self.travelling_point(point)
 
                     
