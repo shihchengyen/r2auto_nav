@@ -17,9 +17,12 @@ from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Pose
+from std_msgs.msg import String, Bool
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid
+import paho.mqtt.client as mqtt
+
 import numpy as np
 import math
 import cmath
@@ -28,7 +31,8 @@ import json
 
 # constants
 ROTATECHANGE = 0.1
-SPEEDCHANGE = 0.08
+SPEEDCHANGE = 0.05
+ANGLETHRESHOLD = 0.5
 OCC_BINS = [-1, 0, 100, 101]
 STOP_DISTANCE = 0.04
 FRONT_ANGLE = 30
@@ -36,6 +40,11 @@ FRONT_ANGLES = range(-FRONT_ANGLE,FRONT_ANGLE+1,1)
 WP_FILE = "waypoints.json"
 F = open(WP_FILE, 'r+')
 EXISTING_WAYPOINTS = json.load(F)
+IP_ADDRESS = "172.20.10.5"
+
+
+table_number = -1
+next_table_num = -1
 # code from https://automaticaddison.com/how-to-convert-a-quaternion-into-euler-angles-in-python/
 def euler_from_quaternion(x, y, z, w):
     """
@@ -80,6 +89,18 @@ class TableNav(Node):
         '''
         # initialize variables
         
+        
+        self.tableNumber_subscription = self.create_subscription(
+            String,
+            'tableNumber',
+            self.tableNumber_callback,
+            10)
+
+        self.tableNumber_subscription # prevent unused variable warning
+        self.tableNumber = -1;
+        self.nextTableNumber = -1;
+        
+
         # create subscription to track occupancy
         self.occ_subscription = self.create_subscription(
             OccupancyGrid,
@@ -88,6 +109,13 @@ class TableNav(Node):
             qos_profile_sensor_data)
         self.occ_subscription  # prevent unused variable warning
         self.occdata = np.array([])
+        
+        self.limitswitch_sub = self.create_subscription(
+            Bool,
+            'limit_switch',
+            self.switch_callback,
+            qos_profile_sensor_data)
+        self.switch = False
         
         # create subscription for map2base
         self.map2base_sub = self.create_subscription(
@@ -100,6 +128,7 @@ class TableNav(Node):
         self.roll = 0
         self.pitch = 0
         self.yaw = 0
+        self.waypointMinDistance = math.inf
 
         # create subscription to track lidar
         self.scan_subscription = self.create_subscription(
@@ -110,13 +139,25 @@ class TableNav(Node):
         self.scan_subscription  # prevent unused variable warning
         self.laser_range = np.array([])
 
+    def switch_callback(self, msg):
+        self.switch = msg.data
 
     # def odom_callback(self, msg):
         # self.get_logger().info('In odom_callback') 
         # orientation_quat =  msg.pose.pose.orientation
         # self.roll, self.pitch, self.yaw = euler_from_quaternion(orientation_quat.x, orientation_quat.y, orientation_quat.z, orientation_quat.w)
 
-
+    
+    def tableNumber_callback(self, msg):
+        num = int(msg.data)
+        print(msg.data)
+        self.get_logger().info(msg.data)
+        if (num >= 1 and num <= 6):
+            if (self.tableNumber):
+                self.nextTableNumber = num
+            else: 
+                self.tableNumber = num
+    
     def occ_callback(self, msg):
         # self.get_logger().info('In occ_callback')
         # create numpy array
@@ -235,7 +276,6 @@ class TableNav(Node):
         time.sleep(1)
         self.publisher_.publish(twist)
 
-
     def stopbot(self):
         self.get_logger().info('In stopbot')
         # publish to cmd_vel to move TurtleBot
@@ -261,10 +301,24 @@ class TableNav(Node):
         self.get_logger().info('Current angle: %f' % math.degrees(self.yaw))
         self.get_logger().info('Angle difference: %f' % angle_diff)
         return angle_diff
+    
+    def rotate_to_angle(self, goal):
+        twist = Twist()
+        curr_angle_diff = angle_to(goal)
+        if (curr_angle_diff > 0):
+            twist.angular.z = ROTATECHANGE
+        else:
+            twist.angular.z = -ROTATECHANGE
+        self.publisher_.publish(twist)
+
+        while (curr_angle_diff > ANGLE_THRESHOLD):
+            rclpy.spin_once(self)
+            self.get_logger().info('Current angle diff: %f' % curr_angle_diff)
+            curr_angle_diff = angle_to(goal)
 
     def moveToTable(self, table_number):
         twist = Twist()
-        for index, waypoint in enumerate(EXISTING_WAYPOINTS[table_number]): 
+        for index, waypoint in enumerate(EXISTING_WAYPOINTS[table_number][1::]): 
             rclpy.spin_once(self) 
             self.get_logger().info('Current waypoint target: %d' % index)
             self.rotatebot(self.angle_to(waypoint) - math.degrees(self.yaw))
@@ -277,14 +331,58 @@ class TableNav(Node):
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
 
+    def returnFromTable(self, table_number):
+        twist = Twist()
+        for index, waypoint in enumerate(EXISTING_WAYPOINTS[table_number][-2::-1]): 
+            rclpy.spin_once(self) 
+            self.get_logger().info('Current waypoint target: %d' % index)
+            self.rotatebot(self.angle_to(waypoint) - math.degrees(self.yaw))
+            self.waypointDistance = self.distance_to(waypoint)
+            while (self.waypointDistance > STOP_DISTANCE and self.waypointMinDistance > self.waypointDistance):
+                rclpy.spin_once(self)
+                twist.linear.x = SPEEDCHANGE
+                twist.angular.z = 0.0
+                self.publisher_.publish(twist)
+                self.waypointDistance = self.distance_to(waypoint)
+                self.waypointMinDistance = min(self.waypointMinDistance, waypointDistance)
+            self.waypointMinDistance = math.inf
+        twist.linear.x = 0.0
+        twist.angular.z = 0.0
+        self.publisher_.publish(twist)
+
+        
     def move(self):
         twist = Twist()
         try:
             while True:
                 rclpy.spin_once(self)
-                # get keyboard input
+                '''
+                #isolated navigation testing without microswitch and mqtt
                 table_number = input("Enter table number: ")
                 self.moveToTable(table_number)
+                self.returnFromTable(table_number)
+                '''
+                global table_number
+                print("self.switch state: %s" % str(self.switch))
+                print("table_number: %s" % str(table_number))
+                if (table_number != -1 and self.switch):
+                    print("Met conditions")
+                    # move to table
+                    #self.moveToTable(table_number)
+                    # wait until switch detects off
+                    while(self.switch):
+                        print("waiting for can to be removed")
+                        print("self.switch state: %s" % str(self.switch))
+                        rclpy.spin_once(self)
+                    # return to dispenser
+                    self.returnFromTable(table_number)
+                    # take next table number if available
+                    if (next_table_number != -1):
+                        table_number = next_table_number
+                        next_table_number = -1
+                    # else reset to -1
+                    else:
+                        table_number = -1
  
         except Exception as e:
             print(e) 
@@ -295,46 +393,27 @@ class TableNav(Node):
             twist.angular.z = 0.0
             self.publisher_.publish(twist)
 
-    def mover(self):
-        try:
-            # initialize variable to write elapsed time to file
-            # contourCheck = 1
-
-            # find direction with the largest distance from the Lidar,
-            # rotate to that direction, and start moving
-            self.pick_direction()
-
-            while rclpy.ok():
-                if self.laser_range.size != 0:
-                    # check distances in front of TurtleBot and find values less
-                    # than stop_distance
-                    lri = (self.laser_range[front_angles]<float(stop_distance)).nonzero()
-                    # self.get_logger().info('Distances: %s' % str(lri))
-
-                    # if the list is not empty
-                    if(len(lri[0])>0):
-                        # stop moving
-                        self.stopbot()
-                        # find direction with the largest distance from the Lidar
-                        # rotate to that direction
-                        # start moving
-                        self.pick_direction()
-                    
-                # allow the callback functions to run
-                rclpy.spin_once(self)
-
-        except Exception as e:
-            print(e)
-        
-        # Ctrl-c detected
-        finally:
-            # stop moving
-            self.stopbot()
-
+def on_table_num(client, userdata, msg):
+    global table_number 
+    global next_table_num
+    if (msg.payload.decode('utf-8') != ""):
+        val = int(msg.payload.decode('utf-8'))
+        if(val >= 1 and val <= 6):
+            if table_number != -1:
+                next_table_num = val
+            else:
+                table_number = val
+    print(table_number) 
+    print(next_table_num) 
 
 def main(args=None):
     rclpy.init(args=args)
 
+    client = mqtt.Client("Turtlebot")
+    client.message_callback_add('ESP32/tableNumber', on_table_num)
+    client.connect(IP_ADDRESS, 1883)
+    client.loop_start()
+    client.subscribe("ESP32/tableNumber", qos=1)
     table_nav = TableNav()
     table_nav.move()
 
