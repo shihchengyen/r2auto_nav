@@ -34,7 +34,7 @@ ROTATECHANGE = 0.1
 SPEEDCHANGE = 0.05
 ANGLETHRESHOLD = 0.5
 OCC_BINS = [-1, 0, 100, 101]
-STOP_DISTANCE = 0.04
+STOP_DISTANCE = 0.08
 FRONT_ANGLE = 30
 FRONT_ANGLES = range(-FRONT_ANGLE,FRONT_ANGLE+1,1)
 WP_FILE = "waypoints.json"
@@ -77,16 +77,6 @@ class TableNav(Node):
         self.publisher_ = self.create_publisher(Twist,'cmd_vel',10)
         # self.get_logger().info('Created publisher')
       
-        '''
-        # create subscription to track orientation
-        self.odom_subscription = self.create_subscription(
-            Odometry,
-            'odom',
-            self.odom_callback,
-            10)
-        # self.get_logger().info('Created subscriber')
-        self.odom_subscription  # prevent unused variable warning
-        '''
         # initialize variables
         
         
@@ -128,7 +118,7 @@ class TableNav(Node):
         self.roll = 0
         self.pitch = 0
         self.yaw = 0
-        self.waypointMinDistance = math.inf
+        self.waypointMinDistance = 10000
 
         # create subscription to track lidar
         self.scan_subscription = self.create_subscription(
@@ -141,12 +131,6 @@ class TableNav(Node):
 
     def switch_callback(self, msg):
         self.switch = msg.data
-
-    # def odom_callback(self, msg):
-        # self.get_logger().info('In odom_callback') 
-        # orientation_quat =  msg.pose.pose.orientation
-        # self.roll, self.pitch, self.yaw = euler_from_quaternion(orientation_quat.x, orientation_quat.y, orientation_quat.z, orientation_quat.w)
-
     
     def tableNumber_callback(self, msg):
         num = int(msg.data)
@@ -157,26 +141,6 @@ class TableNav(Node):
                 self.nextTableNumber = num
             else: 
                 self.tableNumber = num
-    
-    def occ_callback(self, msg):
-        # self.get_logger().info('In occ_callback')
-        # create numpy array
-        msgdata = np.array(msg.data)
-        # compute histogram to identify percent of bins with -1
-        # occ_counts = np.histogram(msgdata,occ_bins)
-        # calculate total number of bins
-        # total_bins = msg.info.width * msg.info.height
-        # log the info
-        # self.get_logger().info('Unmapped: %i Unoccupied: %i Occupied: %i Total: %i' % (occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins))
-
-        # make msgdata go from 0 instead of -1, reshape into 2D
-        oc2 = msgdata + 1
-        # reshape to 2D array using column order
-        # self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width,order='F'))
-        self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width))
-        # print to file
-        # np.savetxt(mapfile, self.occdata)
-
 
     def scan_callback(self, msg):
         # self.get_logger().info('In scan_callback')
@@ -252,39 +216,6 @@ class TableNav(Node):
         # stop the rotation
         self.publisher_.publish(twist)
 
-
-    def pick_direction(self):
-        # self.get_logger().info('In pick_direction')
-        if self.laser_range.size != 0:
-            # use nanargmax as there are nan's in laser_range added to replace 0's
-            lr2i = np.nanargmax(self.laser_range)
-            self.get_logger().info('Picked direction: %d %f m' % (lr2i, self.laser_range[lr2i]))
-        else:
-            lr2i = 0
-            self.get_logger().info('No data!')
-
-        # rotate to that direction
-        self.rotatebot(float(lr2i))
-
-        # start moving
-        self.get_logger().info('Start moving')
-        twist = Twist()
-        twist.linear.x = speedchange
-        twist.angular.z = 0.0
-        # not sure if this is really necessary, but things seem to work more
-        # reliably with this
-        time.sleep(1)
-        self.publisher_.publish(twist)
-
-    def stopbot(self):
-        self.get_logger().info('In stopbot')
-        # publish to cmd_vel to move TurtleBot
-        twist = Twist()
-        twist.linear.x = 0.0
-        twist.angular.z = 0.0
-        # time.sleep(1)
-        self.publisher_.publish(twist)
-
     def distance_to(self, goal):
         rclpy.spin_once(self) 
         x_diff = goal['x'] - self.mapbase.x
@@ -318,34 +249,49 @@ class TableNav(Node):
 
     def moveToTable(self, table_number):
         twist = Twist()
+        table_number = str(table_number)
         for index, waypoint in enumerate(EXISTING_WAYPOINTS[table_number][1::]): 
             rclpy.spin_once(self) 
             self.get_logger().info('Current waypoint target: %d' % index)
             self.rotatebot(self.angle_to(waypoint) - math.degrees(self.yaw))
-            while self.distance_to(waypoint) > STOP_DISTANCE:
+            self.waypointDistance = self.distance_to(waypoint)
+
+            self.get_logger().info('self.waypointDistance: %f' % self.waypointDistance)
+            self.get_logger().info('self.waypointMinDistance: %f' % self.waypointMinDistance)
+            self.get_logger().info('self.waypointDistance > STOP: %s' % str(self.waypointDistance > STOP_DISTANCE))
+            self.get_logger().info('self.waypointMinDistance > waypointDistance: %s' % str(self.waypointMinDistance > self.waypointDistance))
+            while (self.waypointDistance > STOP_DISTANCE and (self.waypointMinDistance <= self.waypointDistance or self.waypointMinDistance == 10000)):
                 rclpy.spin_once(self)
                 twist.linear.x = SPEEDCHANGE
                 twist.angular.z = 0.0
                 self.publisher_.publish(twist)
+                self.waypointDistance = self.distance_to(waypoint)
+                self.waypointMinDistance = min(self.waypointMinDistance, self.waypointDistance)
+                self.get_logger().info('self.waypointDistance > STOP: %s' % str(self.waypointDistance > STOP_DISTANCE))
+                self.get_logger().info('self.waypointMinDistance: %f' % self.waypointMinDistance)
+                self.get_logger().info('self.waypointMinDistance > waypointDistance: %s' % str(self.waypointMinDistance <= self.waypointDistance))
+            self.waypointMinDistance = 10000
         twist.linear.x = 0.0
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
 
     def returnFromTable(self, table_number):
         twist = Twist()
+        table_number = str(table_number)
         for index, waypoint in enumerate(EXISTING_WAYPOINTS[table_number][-2::-1]): 
             rclpy.spin_once(self) 
             self.get_logger().info('Current waypoint target: %d' % index)
             self.rotatebot(self.angle_to(waypoint) - math.degrees(self.yaw))
             self.waypointDistance = self.distance_to(waypoint)
+            
             while (self.waypointDistance > STOP_DISTANCE and self.waypointMinDistance > self.waypointDistance):
                 rclpy.spin_once(self)
                 twist.linear.x = SPEEDCHANGE
                 twist.angular.z = 0.0
                 self.publisher_.publish(twist)
                 self.waypointDistance = self.distance_to(waypoint)
-                self.waypointMinDistance = min(self.waypointMinDistance, waypointDistance)
-            self.waypointMinDistance = math.inf
+                self.waypointMinDistance = min(self.waypointMinDistance, self.waypointDistance)
+            self.waypointMinDistance = 10000
         twist.linear.x = 0.0
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
@@ -368,7 +314,8 @@ class TableNav(Node):
                 if (table_number != -1 and self.switch):
                     print("Met conditions")
                     # move to table
-                    #self.moveToTable(table_number)
+                    print("table_number: %s" % str(table_number))
+                    self.moveToTable(table_number)
                     # wait until switch detects off
                     while(self.switch):
                         print("waiting for can to be removed")
