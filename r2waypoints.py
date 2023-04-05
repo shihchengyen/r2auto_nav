@@ -230,18 +230,14 @@ class Mover(Node):
                     elif cmd_char == 'w':
                         # move forward
                         twist.linear.x += speedchange
-                        twist.angular.z = 0.0
                     elif cmd_char == 'x':
                         # move backward
                         twist.linear.x -= speedchange
-                        twist.angular.z = 0.0
                     elif cmd_char == 'a':
                         # turn counter-clockwise
-                        twist.linear.x = 0.0
                         twist.angular.z += rotatechange
                     elif cmd_char == 'd':
                         # turn clockwise
-                        twist.linear.x = 0.0
                         twist.angular.z -= rotatechange
                     elif cmd_char == 'p':
                         twist.linear.x = 0.0
