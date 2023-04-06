@@ -20,6 +20,7 @@ from geometry_msgs.msg import Pose
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid
+from std_msgs.msg import String
 import numpy as np
 import math
 import cmath
@@ -27,16 +28,53 @@ import time
 
 # constants
 rotatechange = 0.1
-speedchange = 0.05
+speedchange = 0.1
 occ_bins = [-1, 0, 100, 101]
-stop_distance = 0.25
-front_angle = 30
+stop_distance = 0.1
+front_angle = 90
 front_angles = range(-front_angle,front_angle+1,1)
 scanfile = 'lidar.txt'
 mapfile = 'map.txt'
 
-#checkpoints
-Table1 = [(5,1),(5,5),(9,5)]
+
+import socket
+import nmap
+
+def find_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('8.8.8.8', 1))  # connect() for UDP doesn't send packets
+    local_ip_address = s.getsockname()[0]
+    ip_search = local_ip_address.split(".")[:-1]
+    ip_range = ""
+    for item in ip_search:
+        ip_range += item
+        ip_range += "."
+    ip_range += "1/24"
+    s.close()
+    return ip_range
+
+
+def find_disp_ip(ip_range):
+    nm = nmap.PortScanner()
+    data = nm.scan(hosts=ip_range, arguments="-sN").get('scan')
+
+    for item in data:
+        try:
+            if nm[item]['addresses']['mac'] == "80:7D:3A:FC:F0:80":
+                print(item)
+                return item
+        except:
+            pass
+
+
+sock = socket.socket()
+
+#ip_range = find_local_ip()
+#host = find_disp_ip(ip_range) #ESP32 IP in local network
+#host = find_disp_ip(ip_range)
+host = '192.168.34.163'
+port = 80             #ESP32 Server Port    
+
 
 
 
@@ -94,8 +132,10 @@ class PosNav(Node):
         super().__init__('pos_nav')
         
         # create publisher for moving TurtleBot
-        self.publisher_ = self.create_publisher(Twist,'cmd_vel',10)
+        self.publisher_ = self.create_publisher(Twist,'cmd_vel',1)
         # self.get_logger().info('Created publisher')
+
+        self.cmdpub = self.create_publisher(String, 'cmdpi', 5)
 
         #track coords
         self.map2base_sub = self.create_subscription(
@@ -111,12 +151,14 @@ class PosNav(Node):
             self.odom_callback,
             10)
         
+        
         # self.get_logger().info('Created subscriber')
         self.odom_subscription  # prevent unused variable warning
         # initialize variables
         self.roll = 0
         self.pitch = 0
         self.yaw = 0
+        self.og = 0
         
   
         # create subscription to track occupancy
@@ -136,6 +178,33 @@ class PosNav(Node):
             qos_profile_sensor_data)
         self.scan_subscription  # prevent unused variable warning
         self.laser_range = np.array([])
+
+        # create subscription to track ultrasonic
+        self.ultrasub = self.create_subscription(
+            String,
+            'ultrasonic',
+            self.ultra_callback,
+            5
+        )
+        
+
+
+
+        
+
+        #checkpoints
+        Table1 = [(0.5,0),(1,0),(1.5,0),(1.6,0)]
+        Table2 = [(0.5,0),(1,0),(1.3,-0.5),(1,-1)]
+        Table3 = [(0.5,0),(0.6,-0.3),(0.7,-0.6),(1,-1)]
+        Table4 = [(0.5,0),(0.6,-0.4),(0.7,-0.8),(0.8,-1.2),(1,-2)]
+        Table5 = [(0.5,0),(0.5,-0.5),(0.5,-1),(0,-1),(0,-1.5),(0,-2),(0,-2.2),(0.5,-2.2),(1,-2.2),(1.5,-2.2),(2,-2.5)]
+        Table6 = [(0.5,0),(1,0),(1.5,0),(1.5,-0.5),(1.5,-1),(1.5,-1.8),(2,-1.8),(2.5,-1.8),(2.5,-1.3)]
+        self.Tables = [Table1,Table2,Table3,Table4,Table5,Table6]
+
+
+    def ultra_callback(self, msg):
+        print(msg.data)
+        self.ultrasonic = msg.data
 
 
     def odom_callback(self, msg):
@@ -177,9 +246,24 @@ class PosNav(Node):
         #self.get_logger().info('In map2basecallback')
         
         self.mapbase = msg.position
-        self.roll, self.pitch, self.yaw = euler_from_quaternion(msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w)
 
+    def dispwait(self):
+        rclpy.spin_once(self)
+        while self.disp == "waiting":
+            time.sleep(0.1)
+            rclpy.spin_once(self)
+        if self.disp == "can in":
+            return 1
+        return 0
 
+    def ultrawait(self):
+        rclpy.spin_once(self)
+        while self.ultrasonic == "waiting":
+            time.sleep(0.1)
+            rclpy.spin_once(self)
+        if self.ultrasonic == "can out":
+            return 1
+        return 0
 
     # function to rotate the TurtleBot
     def rotatebot(self, rot_angle):
@@ -212,21 +296,30 @@ class PosNav(Node):
 
         # we will use the c_dir_diff variable to see if we can stop rotating
         c_dir_diff = c_change_dir
-        self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
+        curr_time = time.time()
+        time_passed = 0
+        if abs(rot_angle)<15:
+            turnflag = 0
+        else:
+            turnflag = 1
+        #self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
         # if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
         # becomes -1.0, and vice versa
-        while(c_change_dir * c_dir_diff > 0):
+        #self.get_logger().info('time_diff: %f turnflag: %f' % (time_passed, turnflag))
+        while(((c_change_dir * c_dir_diff) > 0) or (time_passed < 2 and turnflag)):
+            
             # allow the callback functions to run
+            time_passed = time.time() - curr_time
             rclpy.spin_once(self)
             current_yaw = self.yaw
             # convert the current yaw to complex form
             c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-            self.get_logger().info('Current Yaw: %f' % math.degrees(current_yaw))
+            # self.get_logger().info('Current Yaw: %f' % math.degrees(current_yaw))
             # get difference in angle between current and target
             c_change = c_target_yaw / c_yaw
             # get the sign to see if we can stop
             c_dir_diff = np.sign(c_change.imag)
-            self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
+            # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
 
         self.get_logger().info('End Yaw: %f' % math.degrees(current_yaw))
         # set the rotation speed to 0
@@ -248,66 +341,115 @@ class PosNav(Node):
         self.publisher_.publish(twist)
 
     
+    def robotbackwards(self):
+        
+        # start moving
+        self.get_logger().info('Start moving')
+        twist = Twist()
+        twist.linear.x = -speedchange
+        twist.angular.z = 0.0
+        # not sure if this is really necessary, but things seem to work more
+        # reliably with this
+        self.publisher_.publish(twist)
 
-    def cal(self):
-        rclpy.spin_once(self)
-        og_coords = [self.mapbase.x,self.mapbase.y]
-        while ([self.mapbase.x,self.mapbase.y] == og_coords):
-            self.robotforward()
-            rclpy.spin_once(self)
-        self.stopbot()
-        time.sleep(5)
-        rclpy.spin_once(self)
-        og = angle_between(og_coords,[self.mapbase.x,self.mapbase.y])
-        return og
+
+    def park(self):
+        
+        # start moving
+        twist = Twist()
+        twist.linear.x = -speedchange/2
+        twist.angular.z = 0.0
+        # not sure if this is really necessary, but things seem to work more
+        # reliably with this
+        self.publisher_.publish(twist)
+
+
     
 
-    def move_coords(self, to_x, to_y,og):
+    def cal(self):
+        
         rclpy.spin_once(self)
-        new_angle = (angle_between([self.mapbase.x,self.mapbase.y],[to_x,to_y]))
+        self.ogyaw = self.yaw
+        og_coords = [self.mapbase.x,self.mapbase.y]
+        self.robotforward()
+        time.sleep(2)
+        self.stopbot()
+        rclpy.spin_once(self)
+        while og_coords == [self.mapbase.x,self.mapbase.y]:
+            rclpy.spin_once(self)
+        self.og = angle_between(og_coords,[self.mapbase.x,self.mapbase.y])
+        print("Cal angle",self.og)
+        self.robotbackwards()
+        time.sleep(2)
+        self.stopbot()
+
+    
+
+    def move_coords(self, to_x, to_y):
+        mindist = 100
+        rclpy.spin_once(self)
+        temp = [self.mapbase.x,self.mapbase.y]
+        next = angle_between(temp,[to_x,to_y])
+        new_angle = (-(next-self.og+360)%360+360)%360
         print("new: ",end="")
-        print(new_angle)
+        print(new_angle,next,self.og,self.mapbase.x,self.mapbase.y)
         self.rotatebot(new_angle)
         stop_flag = 0
         print("found")
         self.robotforward()
+        overshot = 0
         while not stop_flag:
             time.sleep(0.1)
             rclpy.spin_once(self)
             dist = math.sqrt((self.mapbase.x-to_x)**2 + (self.mapbase.y-to_y)**2)
-            print(dist)
-            if dist < 0.2:
+            print(dist,self.mapbase.x,self.mapbase.y)
+            if dist < mindist:
+                mindist = dist
+            if dist < stop_distance:
                 stop_flag = 1
+                print("yes")
+            elif ((dist - mindist) > 0.06):
+                print("Overshot")
+                stop_flag = 1
+                overshot = 1
         self.stopbot()
+        rclpy.spin_once(self)
+        next = angle_between(temp,[self.mapbase.x,self.mapbase.y])
+        self.og = next
+        if overshot:
+            self.move_coords(to_x, to_y)
         print("done")
 
 
+    def pick_table(self, table):
 
+        coords = self.Tables[table-1]
+        next = coords[0]
+        while next != coords[-1]:
+            self.move_coords(next[0],next[1])
+            next = coords[coords.index(next)+1]
+        self.move_coords(next[0],next[1])
 
-
-    def pick_direction(self):
-        # self.get_logger().info('In pick_direction')
-        if self.laser_range.size != 0:
-            # use nanargmax as there are nan's in laser_range added to replace 0's
-            lr2i = np.nanargmax(self.laser_range)
-            self.get_logger().info('Picked direction: %d %f m' % (lr2i, self.laser_range[lr2i]))
-        else:
-            lr2i = 0
-            self.get_logger().info('No data!')
-
-        # rotate to that direction
-        print(float(lr2i))
-        self.rotatebot(float(lr2i))
-
-        # start moving
-        self.get_logger().info('Start moving')
-        twist = Twist()
-        twist.linear.x = speedchange
-        twist.angular.z = 0.0
-        # not sure if this is really necessary, but things seem to work more
-        # reliably with this
+        #if table==6:
+        #    self.find_table_6()
+        self.robotforward()
         time.sleep(1)
-        self.publisher_.publish(twist)
+        self.stopbot()
+        
+        self.ultrawait()
+
+        self.robotbackwards()
+        time.sleep(1)
+        self.stopbot()
+
+        next = coords[-2]
+        while next != coords[0]:
+            self.move_coords(next[0],next[1])
+            next = coords[coords.index(next)-1]
+        self.move_coords(0.5,0)
+        self.backup()
+        
+
 
 
     def stopbot(self):
@@ -320,41 +462,92 @@ class PosNav(Node):
         self.publisher_.publish(twist)
 
 
-    def mover(self):
-        try:
-            # initialize variable to write elapsed time to file
-            # contourCheck = 1
-
-            # find direction with the largest distance from the Lidar,
-            # rotate to that direction, and start moving
-            self.pick_direction()
-
+    def find_table_6(self):
             while rclpy.ok():
                 if self.laser_range.size != 0:
                     # check distances in front of TurtleBot and find values less
-                    # than stop_distance
-                    lri = (self.laser_range[front_angles]<float(stop_distance)).nonzero()
-                    # self.get_logger().info('Distances: %s' % str(lri))
-
-                    # if the list is not empty
+                    # than stop_distance using scan data
+                    lri = (self.laser_range[front_angles]<float(0.40)).nonzero()
+                    #removes angles where distance is more than stop_distance
                     if(len(lri[0])>0):
-                        # stop moving
                         self.stopbot()
-                        # find direction with the largest distance from the Lidar
-                        # rotate to that direction
-                        # start moving
-                        self.pick_direction()
-                    
-                # allow the callback functions to run
+                        lr2i = np.nanargmin(self.laser_range)
+                        self.rotatebot(float(lr2i))
+                        lri2 = (self.laser_range[front_angles]<float(0.15).nonzero())
+                        if(len(lri2[0])==0):
+                            self.robotforward()
+                        else:
+                            self.stopbot()
+                    else:
+                        self.robotforward()
                 rclpy.spin_once(self)
 
-        except Exception as e:
-            print(e)
+    
+    def backup(self):
+        self.move_coords(0.5,0)
+        self.cal()
+        next = angle_between([self.mapbase.x,self.mapbase.y],[0,0])
+        new_angle = (-(next-self.og+360)%360+360+180)%360
+        rclpy.spin_once(self)
+        #park_angle = (self.ogyaw - self.yaw + 360)%360
+        self.rotatebot(new_angle)
+        self.og = (next+180)%360
+        dist = math.sqrt((self.mapbase.x)**2 + (self.mapbase.y)**2)
+        mindist = 10000
+        stop_flag = 0
+        overshotcount = 0
+        msg = String()
+        msg.data = "back"
+        self.cmdpub.publish(msg)
+        while not stop_flag and not (overshotcount>=10):
+            self.park()
+            time.sleep(0.1)
+            rclpy.spin_once(self)
+            dist = math.sqrt((self.mapbase.x)**2 + (self.mapbase.y)**2)
+            if dist < 0.1:
+                stop_flag = 1
+            if dist<mindist:
+                mindist = dist
+            elif ((dist - mindist) > 0.05):
+                print("overshot parking")
+                rclpy.spin_once(self)
+                overshotcount += 1
+            elif ((self.mapbase.x<0)):
+                overshotcount = 10
+            print(dist)
+
         
-        # Ctrl-c detected
-        finally:
-            # stop moving
-            self.stopbot()
+
+
+        self.stopbot()
+        if overshotcount >= 10:
+            self.backup()
+
+        print("done parking")
+
+
+
+
+
+def tableinp():
+    #find angle for 
+    sock.connect((host, port))
+    print("connected")
+
+    #initmsg = "start".encode()
+    #sock.send(initmsg)
+
+    data = sock.recv(1).decode()
+
+    while(not data.strip().isdigit()):
+        data += sock.recv(1).decode()           
+
+        print(data[-1])
+
+    
+    sock.close()
+
+    return int(data)
 
 
 def main(args=None):
@@ -362,22 +555,35 @@ def main(args=None):
 
     auto_nav = PosNav()
 
-    #find angle for 
+    auto_nav.cal()
+    while (True):
+        table_num = tableinp()
+        auto_nav.dispwait()
+        auto_nav.pick_table(table_num)
+
+
+
 
     inp = "Go"
     while inp != "Stop":
-        inp = input("Go/Stop/Auto/Cal: ")
+        inp = input("Go/Stop/Auto/Cal/Pick/6/backup: ")
         if inp == "Cal":
-            og = auto_nav.cal()
+            auto_nav.cal()
+        elif inp == "Pick":
+            table = input("Enter table number: ")
+            auto_nav.pick_table(int(table))
+            auto_nav.backup()
         elif inp == "Go":
             inc = input("Enter coordinates like x,y: ")
             inc = inc.split(",")
             #Todo: keep track of old angle
-            og = auto_nav.move_coords(float(inc[0]),float(inc[1]),og)
-        elif inp == "Auto":
-            auto_nav.mover()
+            auto_nav.move_coords(float(inc[0]),float(inc[1]))
         elif inp == "Stop":
             auto_nav.stopbot()
+        elif inp == '6':
+            auto_nav.find_table_6()
+        elif inp == "backup":
+            auto_nav.backup()
 
     # create matplotlib figure
     # plt.ion()
