@@ -15,9 +15,9 @@ from math import pi
 import cmath
 # import RPI.GPIO as GPIO
 import paho.mqtt.client as mqtt
-with open("waypoints.pickle","rb") as handle:
+with open("waypoints_sim.pickle","rb") as handle:
     waypoints = pickle.load(handle)
-
+re = 0
 print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
@@ -119,10 +119,10 @@ class Auto_Mover(Node):
     def scan_callback(self, msg):
         # create numpy array
         laser_range = np.array(msg.ranges)
-        positive_range = laser_range[-20:-1]
+        positive_range = laser_range[-30:-1]
         # print(laser_range[0])
         # taken_range = np.add(taken_range, laser_range[0:16])
-        other_range = (laser_range[0:20])
+        other_range = (laser_range[0:30])
         taken_range = np.append(other_range , positive_range)
         laser_range[laser_range==0] = np.nan
         # find index with minimum value
@@ -236,9 +236,9 @@ class Auto_Mover(Node):
                         print("goal", self.goal_x)
                         print("current y", self.y)
                         print("goal", self.goal_y)
-                    elif point == 3 or point ==  4 or point == 7:
+                    elif point == (3 or 7) or (point ==  4 and re == 0):
                         print("for point 3 and 4, but point is:",point)
-                        if (abs(int(abs(self.goal_x)*100-2)!=int(abs(self.x)*100 ))) or (abs(int(abs(self.goal_x)*100)-int(abs(self.x)*100 )))>= 3 :
+                        if  (abs(int(abs(self.goal_y)*100-2)!=int(abs(self.y)*100 )))  :
                             twist.linear.x = 0.1
                             twist.angular.z = 0.0  
                             print("current y", self.y)
@@ -274,18 +274,32 @@ class Auto_Mover(Node):
         for point in paths:
             self.travelling_point(point)
     def path(self):
+        rclpy.spin_once(self)
         twist = geometry_msgs.msg.Twist()
         # table = 2
         # print("table",Table)
         self.table = int(input("input table number: "))
         try:
             if self.table == 1:
-                while self.front > 0.2:
+                while abs(int(self.orien*100)) >=2 :
+                        print("Turning to table 1")
+                        rclpy.spin_once(self)
+                        print(math.degrees(self.orien))
+                        twist.angular.z = 0.3
+                        self.publisher_.publish(twist)
+                print(self.front, "in 1st if")
+                while self.front > 0.25:
+                        rclpy.spin_once(self)
+                        print("heading to table 1")
+                        print(self.front)
                         twist.linear.x = 0.3
                         twist.angular.z = 0.0
                         self.publisher_.publish(twist)
-                if self.front <= 0.2:
+                if self.front <= 0.25:
+                    print("stopping")
+                    print(self.front)
                     twist.linear.x =0.0
+                self.run_combi([0])
 
             # if self.table == 4 or 5:
             #     self.travelling_point(0)
@@ -304,7 +318,7 @@ class Auto_Mover(Node):
             #             self.publisher_.publish(twist) 
             #             break
 
-            if self.table == 2 or 3 or 4 or 5 :
+            if self.table in [2,3,4,5]:
                 for points in paths[self.table]:
                     self.travelling_point(points)
                     # if self.table == 4 or 5:
@@ -344,6 +358,7 @@ class Auto_Mover(Node):
                     if self.front <= 0.2:
                         print("stopping at table")
                         twist.linear.x =0.0
+                        re = 1
                 new_path = paths[self.table][::-1]
                 if self.table == (4 or 5):
                     new_path[-1] = 7
