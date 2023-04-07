@@ -15,7 +15,7 @@ from math import pi
 import cmath
 # import RPI.GPIO as GPIO
 import paho.mqtt.client as mqtt
-with open("waypoints_sim.pickle","rb") as handle:
+with open("waypoints.pickle","rb") as handle:
     waypoints = pickle.load(handle)
 re = 0
 print(waypoints)
@@ -118,17 +118,26 @@ class Auto_Mover(Node):
 
     def scan_callback(self, msg):
         # create numpy array
+        print("in scan callback")
         laser_range = np.array(msg.ranges)
+        # print("break here:1")
         positive_range = laser_range[-30:-1]
         # print(laser_range[0])
         # taken_range = np.add(taken_range, laser_range[0:16])
         other_range = (laser_range[0:30])
         taken_range = np.append(other_range , positive_range)
-        laser_range[laser_range==0] = np.nan
+        taken_range[taken_range==0] = np.nan
+        # taken_range = list(filter(lambda x: x == 0.0,taken_range))
         # find index with minimum value
         # self.front = laser_range[0]
-        lr2i = np.nanargmin(taken_range)
-        self.front = taken_range[lr2i]
+        # print("break here:2")
+        
+        if np.isnan(taken_range).all() == True:
+            self.front = 3.0
+            print("all NAN")
+        else:
+            lr2i = np.nanargmin(taken_range)
+            self.front = taken_range[lr2i]
         # self.angle_go = math.radians(lr2i)
         # log the info
         # self.get_logger().info('Shortest distance at %i degrees' % lr2i)    
@@ -281,10 +290,12 @@ class Auto_Mover(Node):
         self.table = int(input("input table number: "))
         try:
             if self.table == 1:
+                
                 while abs(int(self.orien*100)) >=2 :
                         print("Turning to table 1")
                         rclpy.spin_once(self)
                         print(math.degrees(self.orien))
+                        print("dis", self.front)
                         twist.angular.z = 0.3
                         self.publisher_.publish(twist)
                 print(self.front, "in 1st if")
@@ -299,7 +310,8 @@ class Auto_Mover(Node):
                     print("stopping")
                     print(self.front)
                     twist.linear.x =0.0
-                self.run_combi([0])
+                    self.publisher_.publish(twist)
+                    self.run_combi([0])
 
             # if self.table == 4 or 5:
             #     self.travelling_point(0)
@@ -363,9 +375,7 @@ class Auto_Mover(Node):
                 if self.table == (4 or 5):
                     new_path[-1] = 7
                 print(new_path)
-                self.run_combi(new_path)
-                    
-                    
+                self.run_combi(new_path)                    
             self.publisher_.publish(twist)   
 
             if self.table == 0:
