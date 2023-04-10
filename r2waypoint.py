@@ -1,115 +1,62 @@
-# Copyright 2016 Open Source Robotics Foundation, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# adapted from https://github.com/Shashika007/teleop_twist_keyboard_ros2/blob/foxy/teleop_twist_keyboard_trio/teleop_keyboard.py
-
+# storing way point into excel file
 import rclpy
 from rclpy.node import Node
-import geometry_msgs.msg
-import nav_msgs.msg
-# constants
-rotatechange = 0.1
-speedchange = 0.05
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Pose
+from pathlib import Path
+import pandas as pd
+import pickle
+print("something")
+waypoints = {0:([],[]),1:([],[]),2:([],[]),3:([],[]),4:([],[]),5:([],[]),6:([],[])}
 
+class Waypoint(Node):
+    def __init__(self) -> None:
+        super().__init__('waypoint')
+        # self.subscription = self.create_subscription(Odometry,'odom',self.odom_callback,10)
+        self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
 
-class Mover(Node):
-    def __init__(self):
-        super().__init__('mover')
-        self.publisher_ = self.create_publisher(geometry_msgs.msg.Twist,'cmd_vel',10)
-        self.odom_subscription = self.create_subscription(nav_msgs.msg.Odometry,'odom',self.readKey_callback,10)
-        print(self.odom_subscription)
-        odom = nav_msgs.msg.Odometry()
-        print(odom)
-        self.roll=0
-        self.pitch =0
-
-    # def odom_callback(self,msg):
-    #     position =  msg.pose.pose.position
-    #     print(position)
-
-    
-        
-        
-# function to read keyboard input
-    def readKey_callback(self):
-        twist = geometry_msgs.msg.Twist()
-        odom = nav_msgs.msg.Odometry()
-        pos = odom.pose.pose.position
-        orien = odom.pose.pose.orientation
-        try:
-            while True:
-                # get keyboard input
-                cmd_char = str(input("Keys w/x a/d s q: "))
-        
-                # check which key was entered
-                if cmd_char == 's':
-                    # stop moving
-                    twist.linear.x = 0.0
-                    twist.angular.z = 0.0
-                elif cmd_char == 'w':
-                    # move forward
-                    twist.linear.x += speedchange
-                    twist.angular.z = 0.0
-                elif cmd_char == 'x':
-                    # move backward
-                    twist.linear.x -= speedchange
-                    twist.angular.z = 0.0
-                elif cmd_char == 'a':
-                    # turn counter-clockwise
-                    twist.linear.x = 0.0
-                    twist.angular.z += rotatechange
-                elif cmd_char == 'd':
-                    # turn clockwise
-                    twist.linear.x = 0.0
-                    twist.angular.z -= rotatechange
-                elif cmd_char =='q':
-                    pos_x = pos.x
-                    orien_w = orien.w
-                    print("pos_x",pos_x,"orien_w",orien_w)
-                    print(odom.pose)
-
-
-
-                # start the movement
-                self.publisher_.publish(twist)
-                
-        except Exception as e:
-            print(e)
+    def odom_callback(self,msg):        
             
-		# Ctrl-c detected
-        finally:
-        	# stop moving
-            twist.linear.x = 0.0
-            twist.angular.z = 0.0
-            self.publisher_.publish(twist)
-
+            # self.pos = msg.pose.pose.position 
+            # self.orien = msg.pose.pose.orientation
+            self.pos = msg.position 
+            self.orien = msg.orientation
+            # self.get_logger().info('I heard: "%s"' % self.pos)
+            
+                # co[tb_int-1][1].extend((pos.x,pos.y,pos.z))
+                # co[tb_int-1][2].extend((orien.x,orien.y,orien.z,orien.z,orien.w))
+               
+    def waypoint_calling(self):
+        cmd_char = "n"
+        while cmd_char == "n":
+            cmd_char = str(input(" Press s to store to csv file/ n for new point: "))
+            if cmd_char == "s":
+                break
+        # if cmd_char =="n":
+            rclpy.spin_once(self)
+            # print(self.pos)
+            tb_int = int(input("Enter table number: "))
+            waypoints[tb_int][0].extend((self.pos.x,self.pos.y,self.pos.z))
+            waypoints[tb_int][1].extend((self.orien.x,self.orien.y,self.orien.z,self.orien.z,self.orien.w))
+            # print(waypoints)
+        if cmd_char == 's': 
+            print("saving...")
+            print(waypoints)
+            with open('waypoints_sim.pickle','wb') as handle:
+                pickle.dump(waypoints, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            # saving_file()
+                 
+            # print(pos.x,pos.y,pos.z)
+            # print(orien.x,orien.y,orien.z,orien.w)       
 
 def main(args=None):
     rclpy.init(args=args)
-
-    mover = Mover()
-    # mover.odom_callback()
-    mover.readKey_callback()
-    
-
-    # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
-    mover.destroy_node()
-    
+    waypoint = Waypoint()
+    # cmd_char = str(input("Press q to get point: "))
+    rclpy.spin_once(waypoint)
+    waypoint.waypoint_calling()
+    waypoint.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

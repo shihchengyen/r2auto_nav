@@ -4,6 +4,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 import geometry_msgs.msg
+from geometry_msgs.msg import Pose
 from std_msgs.msg import String
 import numpy as np
 import math
@@ -21,11 +22,12 @@ with open("waypoints_sim.pickle","rb") as handle:
 print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
-angle_error = 1
-paths = {1:[0],2:[0,2],3:[0,2],4:[0,3],5:[0,4]}
+angle_error = 2
+paths = {1:[0],2:[0,2],3:[0,2],4:[0,3],5:[0,4],6:[0,2,5,6]}
 # print("in in in ")
 count = 0
 rotatechange = 0.1
+
 # quad_1 = range(0, 0.5 * pi)
 # quad_2 = range (0.5 * pi, pi)
 # quad_3 = range(pi, -0.5 * pi)
@@ -48,23 +50,26 @@ def euler_from_quaternion(x, y, z, w):
     return  yaw_z # in radians
 
 class Auto_Mover(Node):
+    dir = 0.0
     table = 0
     rot_q = 0.0
     orien = 5.0
     count = 0
     front = 5.0
     yaw = 0.0
+    # range = np.array([])
     def __init__(self) -> None:
+        
         self.x = -1
         self.y = -1
         super().__init__('auto_mover')
         self.publisher_ = self.create_publisher(geometry_msgs.msg.Twist, 'cmd_vel',10)
         self.user_subscription = self.create_subscription(String,
                                                           'user',self.user_sub,10)
-        self.odom_subsription = self.create_subscription(Odometry,
-            'odom',
-            self.odom_callback,
-            10)
+        # self.odom_subsription = self.create_subscription(Odometry,
+        #     'odom',
+        #     self.odom_callback,
+        #     10)
         # self.occ_subscription = self.create_subscription(
         #     OccupancyGrid,
         #     'map',
@@ -72,7 +77,7 @@ class Auto_Mover(Node):
         #     qos_profile_sensor_data)
         # self.occ_subscription  # prevent unused variable warning
         # self.occdata = np.array([])
-        # self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
+        self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
         self.subscription = self.create_subscription(
             LaserScan,
             'scan',
@@ -110,8 +115,8 @@ class Auto_Mover(Node):
         #For map2base
         # self.x = msg.position.x
         # self.y = msg.position.y
-        # cur_rot = msg.orientation
-        print("In callback")
+        # self.rot_q = msg.orientation
+        # print("In callback")
         # print("self.orien",self.orien)
         #for map  
         # cur_pos = trans.transform.translation
@@ -130,11 +135,54 @@ class Auto_Mover(Node):
         # points_char = int(input("enter waypoint to travel: "))
     
         # # print("qewagdsfnc")
+    
+    def user_sub(self, msg):
+        self.table = int(msg.data)
+        # print("in subcriber user")    
+
+    def scan_callback(self, msg):
+        # create numpy array
+        # print("in scan callback")
+        laser_range = np.array(msg.ranges)
+        # print("break here:1")
+        positive_range = laser_range[-30:-1]
+        # print(laser_range[0])
+        # taken_range = np.add(taken_range, laser_range[0:16])
+        other_range = (laser_range[0:30])
+        taken_range = np.append(other_range , positive_range)
+        taken_range[taken_range==0] = np.nan
+        # print(laser_range)
+        # taken_range = list(filter(lambda x: x == 0.0,taken_range))
+        # find index with minimum value
+        # self.front = laser_range[0]
+        # print("break here:2")
+        if np.isnan(taken_range).all() == True:
+            self.front = 3.0
+            # print("all NAN")
+        else:
+            lr2i = np.nanargmin(taken_range)
+            self.front = taken_range[lr2i]
+            # print("updated dist", self.front)
+        if taken_range.size != 0:
+            # print(taken_range)
+            # use nanargmax as there are nan's in laser_range added to replace 0's
+            self.dir = np.nanargmin(taken_range)
+            # self.get_logger().info('Picked direction: %d %f m' % (self.dir,taken_range[self.dir]))
+            return
+        else:
+            self.dir = 0
+            self.get_logger().info('No data!')
+            # print("laser range",taken_range)
+        
+        
+        # self.angle_go = math.radians(lr2i)
+        # log the info
+        # self.get_logger().info('Shortest distance at %i degrees' % lr2i)    
     def rotatebot(self, rot_angle):
+        print("in rotate")
         # self.get_logger().info('In rotatebot')
         # create Twist object
         twist = geometry_msgs.msg.Twist()
-        print ("im in")
         # get current yaw angle
         current_yaw = self.orien
         # log the info
@@ -165,20 +213,15 @@ class Auto_Mover(Node):
         # becomes -1.0, and vice versa
         while(c_change_dir * c_dir_diff > 0):
             # allow the callback functions to run
-            print("in while loop")
             rclpy.spin_once(self)
             current_yaw = self.orien
             # convert the current yaw to complex form
-            print(self.orien)
             c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
             # self.get_logger().info('Current Yaw: %f' % math.degrees(current_yaw))
             # get difference in angle between current and target
             c_change = c_target_yaw / c_yaw
             # get the sign to see if we can stop
             c_dir_diff = np.sign(c_change.imag)
-            print(c_change_dir * c_dir_diff )
-            print(c_change)
-            print(c_change_dir)
             # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
 
         self.get_logger().info('End Yaw: %f' % math.degrees(current_yaw))
@@ -186,38 +229,45 @@ class Auto_Mover(Node):
         twist.angular.z = 0.0
         # stop the rotation
         self.publisher_.publish(twist)
+  
+    def pick_direction(self):
+        try:
+            rclpy.spin_once(self)
+            
+            twist = geometry_msgs.msg.Twist()
+            # self.get_logger().info('In pick_direction')
+            print("self.dir",self.dir)
+            angle = self.dir
+            degree_to_turn = angle - math.degrees(self.orien ) 
+            print(degree_to_turn)
+            print(math.degrees(self.orien))
+            while self.front > 0.25:
+                
+                # self.rotatebot(degree_to_turn)
+                rclpy.spin_once(self)
+                if (degree_to_turn) > angle_error:
+                    degree_to_turn = angle - math.degrees(self.orien ) 
+                    print("degree to turn",(degree_to_turn))
+                    print("dtt ", angle)
+                    print("orien",math.degrees(self.orien))
+                    # print(self.dir)
+                    twist.linear.x = 0.0
+                    twist.angular.z = 0.5
+                
+               
+                else:      
+                    print("heading to table 6")
+                    print(self.front)
+                    twist.linear.x = 0.1
+                    twist.angular.z = 0.0                 
+                                    
+                self.publisher_.publish(twist)
+        finally:
+            twist.linear.x = 0.1
+            twist.angular.z = 0.0                 
+                                    
+            self.publisher_.publish(twist)
 
-        
-    def user_sub(self, msg):
-        self.table = int(msg.data)
-        # print("in subcriber user")    
-
-    def scan_callback(self, msg):
-        # create numpy array
-        print("in scan callback")
-        laser_range = np.array(msg.ranges)
-        # print("break here:1")
-        positive_range = laser_range[-30:-1]
-        # print(laser_range[0])
-        # taken_range = np.add(taken_range, laser_range[0:16])
-        other_range = (laser_range[0:30])
-        taken_range = np.append(other_range , positive_range)
-        taken_range[taken_range==0] = np.nan
-        # taken_range = list(filter(lambda x: x == 0.0,taken_range))
-        # find index with minimum value
-        # self.front = laser_range[0]
-        # print("break here:2")
-        
-        if np.isnan(taken_range).all() == True:
-            self.front = 3.0
-            print("all NAN")
-        else:
-            lr2i = np.nanargmin(taken_range)
-            self.front = taken_range[lr2i]
-        # self.angle_go = math.radians(lr2i)
-        # log the info
-        # self.get_logger().info('Shortest distance at %i degrees' % lr2i)    
-      
 
 
     def travelling_point(self, point):
@@ -242,7 +292,7 @@ class Auto_Mover(Node):
         theta = (atan2(self.goal_y-self.y,self.goal_x-self.x))
         inc_x = 10000000 
         degree_to_turn = math.degrees(theta - self.orien )
-        sign = np.sign(degree_to_turn)
+        self.sign = np.sign(degree_to_turn)
         degree_to_turn = math.degrees(theta - self.orien )
         try:
 
@@ -260,11 +310,11 @@ class Auto_Mover(Node):
                         # print("angle finding")
                         # self.rotatebot(degree_to_turn)
                         twist.linear.x = 0.0
-                        twist.angular.z = 0.5 * sign
+                        twist.angular.z = 0.5 * self.sign
                         print("degree to turn", degree_to_turn)
                         print("current angle", math.degrees(self.orien))
                         print("theta", math.degrees(theta))
-                        print(sign)
+                        print(self.sign)
                         print(point)
                         # print("current x", self.x)
                         # print("goal", self.goal_x)
@@ -272,7 +322,7 @@ class Auto_Mover(Node):
                         # print("goal", self.goal_y)
                     elif point == 3 or point == 7 or point == 4:
                         print("for point 3 and 4, but point is:",point)
-                        if  (abs(int(abs(self.goal_y)*100-2)!=int(abs(self.y)*100 )))  :
+                        if  (abs(int(abs(self.goal_y)*100)-int(abs(self.y)*100 ))) >=2 :
                             twist.linear.x = 0.1
                             twist.angular.z = 0.0  
                             print("current y", self.y)
@@ -287,7 +337,7 @@ class Auto_Mover(Node):
                         twist.angular.z = 0.0 
                         self.publisher_.publish(twist)
                         break                    
-                    elif (abs(int(abs(self.goal_x)*100 -2)!=int(abs(self.x)*100 ))):
+                    elif (abs(int(abs(self.goal_x)*100 -int(abs(self.x)*100 )))) >= 2:
                         # and abs((int(abs(self.goal_y)*100-2)-int(abs(self.y)*100))<= 3)
                         print("moving")
                         print("current x", self.x)
@@ -318,7 +368,7 @@ class Auto_Mover(Node):
         try:
             if self.table == 1:
                 
-                while abs(int(self.orien*100)) <=320:
+                while abs(int(self.orien*100)) <=310:
                         print("Turning to table 1")
                         rclpy.spin_once(self)
                         print(math.degrees(self.orien))
@@ -341,6 +391,11 @@ class Auto_Mover(Node):
                     twist.linear.x =0.0
                     self.publisher_.publish(twist)
                     self.run_combi([0])
+            if self.table == 6:
+                rclpy.spin_once(self)
+                print("self dir in 6",self.dir)
+                # self.run_combi(paths[self.table])
+                self.pick_direction()
 
         
 
@@ -357,33 +412,32 @@ class Auto_Mover(Node):
                         print(math.degrees(self.orien))
                         print( abs(int(self.orien*100)))
                 else:
-                    while abs(int(self.orien*100)) <=310 :
+                    while abs(int(self.orien*100)) <= 290:
                         print("Turning to table, not 3")
                         rclpy.spin_once(self)
                         # print(math.degrees(self.orien))
                         print(abs(int(self.orien*100)))
                         twist.angular.z = 0.3
                         self.publisher_.publish(twist)
-                while self.front > 0.3:
+                while self.front > 0.25:
                     rclpy.spin_once(self)
                     print("moving to table")
                     twist.linear.x = 0.1
-                    twist.angular.z = 0.0                 
-                                  
+                    twist.angular.z = 0.0 
                     self.publisher_.publish(twist)
                     
-                    if self.front <= 0.3:
+                    if self.front <= 0.25:
                         print("stopping at table")
                         twist.linear.x =0.0
                         
-                new_path = paths[self.table][::-1]
-                if self.table == (4 or 5):
-                    new_path[-1] = 7
-                if self.table == 4:
-                    new_path[0] = 8
-                print(new_path)
-                self.run_combi(new_path)                    
-               
+            new_path = paths[self.table][::-1]
+            if self.table == (4 or 5):
+                new_path[-1] = 7
+            if self.table == 5:
+                new_path[0] = 8
+            print(new_path)
+            self.run_combi(new_path)                    
+            
 
             if self.table == 0:
                 print("FAILED TO SUBSCIBE TO USER")
