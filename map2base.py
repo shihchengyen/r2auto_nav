@@ -33,8 +33,14 @@ class Map2Base(Node):
         timer_period = 0.05
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
+
     def timer_callback(self):
         # create numpy array
+        prevx = 0
+        prevy = 0
+        start = 0
+    
+
         msg = Pose()
         from_frame_rel = self.target_frame
         to_frame_rel = 'map'
@@ -51,8 +57,21 @@ class Map2Base(Node):
             self.get_logger().info(
                 f'Could not transform {to_frame_rel} to {from_frame_rel}: {ex}')
             return
-        msg.position.x = self.mapbase.transform.translation.x 
-        msg.position.y = self.mapbase.transform.translation.y
+        if not start:
+            start = 1
+            prevx = self.mapbase.transform.translation.x
+            prevy = self.mapbase.transform.translation.y
+        else:
+            if abs(prevx - self.mapbase.transform.translation.x) > 0.5 or abs(prevy - self.mapbase.transform.translation.y) > 0.5:
+                print("jitter")
+                prevx = prevx
+                prevy = prevy
+            else:
+                prevx = self.mapbase.transform.translation.x
+                prevy = self.mapbase.transform.translation.y
+
+        msg.position.x = prevx
+        msg.position.y = prevy
         msg.orientation = self.mapbase.transform.rotation
         
         self.map2base.publish(msg)
