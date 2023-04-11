@@ -23,7 +23,7 @@ print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
 angle_error = 2
-paths = {1:[0],2:[0,2],3:[0,2],4:[0,2,3],5:[0,4],6:[0,2,5,6,7]}
+paths = {1:[0],2:[0,2],3:[0,2],4:[0,2,3],5:[0,4],6:[0,2,5,6]}
 # print("in in in ")
 count = 0
 rotatechange = 0.1
@@ -195,6 +195,7 @@ class Auto_Mover(Node):
             print("degree to turn",(degree_to_turn))
             print("dtt ", angle)
             print("orien",math.degrees(self.orien))
+            print("front",self.front)
             while self.front > 0.25:
                 print("in loop")
                 # self.rotatebot(degree_to_turn)
@@ -277,8 +278,13 @@ class Auto_Mover(Node):
                     elif point == 3 or point == 7 or point == 4:
                         print("for point 3 and 4, but point is:",point)
                         if  (abs(int(abs(self.goal_y)*100)-int(abs(self.y)*100 ))) >=2 :
-                            twist.linear.x = 0.1
-                            twist.angular.z = 0.0  
+                            if self.goal_y > self.y:
+
+                                twist.linear.x = 0.1
+                                twist.angular.z = 0.0  
+                            if self.goal_y < self.y :
+                                twist.linear.x = -0.1
+                                twist.angular.z = 0.0 
                             print("current y", self.y)
                             print("goal", self.goal_y)  
                         else:
