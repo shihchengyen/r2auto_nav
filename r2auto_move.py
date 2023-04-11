@@ -23,7 +23,7 @@ print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
 angle_error = 2
-paths = {1:[0],2:[0,2],3:[0,2],4:[0,2,3],5:[0,4],6:[0,2,5,6]}
+paths = {1:[0],2:[0,2],3:[0,2],4:[0,2,3],5:[0,4],6:[0,2,5,6,7]}
 # print("in in in ")
 count = 0
 rotatechange = 0.1
@@ -145,10 +145,10 @@ class Auto_Mover(Node):
         # print("in scan callback")
         laser_range = np.array(msg.ranges)
         # print("break here:1")
-        positive_range = laser_range[-30:-1]
+        positive_range = laser_range[-20:-1]
         # print(laser_range[0])
         # taken_range = np.add(taken_range, laser_range[0:16])
-        other_range = (laser_range[0:30])
+        other_range = (laser_range[0:20])
         taken_range = np.append(other_range , positive_range)
         taken_range[taken_range==0] = np.nan
         # print(laser_range)
@@ -188,13 +188,14 @@ class Auto_Mover(Node):
             print("self.dir",self.dir)
             angle = self.dir
             degree_to_turn = angle - math.degrees(self.orien ) 
-            print(degree_to_turn)
-            print(math.degrees(self.orien))
+            print("degree to turn",(degree_to_turn))
+            print("dtt ", angle)
+            print("orien",math.degrees(self.orien))
             while self.front > 0.25:
-                
+                print("in loop")
                 # self.rotatebot(degree_to_turn)
                 rclpy.spin_once(self)
-                if (degree_to_turn) > angle_error:
+                if abs(degree_to_turn) > angle_error:
                     degree_to_turn = angle - math.degrees(self.orien ) 
                     print("degree to turn",(degree_to_turn))
                     print("dtt ", angle)
@@ -343,13 +344,13 @@ class Auto_Mover(Node):
             if self.table == 6:
                 rclpy.spin_once(self)
                 # self.run_combi(paths[self.table])
-                while abs(int(self.orien*100)) - 110 <=angle_error:
-                        print("Turning to table 6")
-                        rclpy.spin_once(self)
-                        print(math.degrees(self.orien))
-                        print("dis", self.front)
-                        twist.angular.z = 0.3
-                        self.publisher_.publish(twist)
+                # while abs(int(self.orien*100)) - 110 <=angle_error:
+                #         print("Turning to table 6")
+                #         rclpy.spin_once(self)
+                #         print(math.degrees(self.orien))
+                #         print("dis", self.front)
+                #         twist.angular.z = 0.3
+                #         self.publisher_.publish(twist)
                 print("self dir in 6",self.dir)
                 # 
                 self.pick_direction()
@@ -388,7 +389,7 @@ class Auto_Mover(Node):
                         twist.linear.x =0.0
                         
             new_path = paths[self.table][::-1]
-            if self.table == (4 or 5):
+            if self.table in  [4 , 5]:
                 new_path[-1] = 7
             if self.table == 5:
                 new_path[0] = 8
