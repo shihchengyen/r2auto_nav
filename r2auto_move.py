@@ -145,10 +145,14 @@ class Auto_Mover(Node):
         # print("in scan callback")
         laser_range = np.array(msg.ranges)
         # print("break here:1")
-        positive_range = laser_range[-20:-1]
+        positive_range = laser_range[-30:-1]
+        p = laser_range[-10:-1]
+        n = laser_range[0:10]
+        check_range = np.append(n,p)
+
         # print(laser_range[0])
         # taken_range = np.add(taken_range, laser_range[0:16])
-        other_range = (laser_range[0:20])
+        other_range = (laser_range[0:30])
         taken_range = np.append(other_range , positive_range)
         taken_range[taken_range==0] = np.nan
         # print(laser_range)
@@ -156,12 +160,12 @@ class Auto_Mover(Node):
         # find index with minimum value
         # self.front = laser_range[0]
         # print("break here:2")
-        if np.isnan(taken_range).all() == True:
+        if np.isnan(check_range).all() == True:
             self.front = 3.0
             # print("all NAN")
         else:
-            lr2i = np.nanargmin(taken_range)
-            self.front = taken_range[lr2i]
+            lr2i = np.nanargmin(check_range)
+            self.front = check_range[lr2i]
             # print("updated dist", self.front)
         if taken_range.size != 0:
             # print(taken_range)
@@ -213,7 +217,7 @@ class Auto_Mover(Node):
                                     
                 self.publisher_.publish(twist)
         finally:
-            twist.linear.x = 0.1
+            twist.linear.x = 0.0
             twist.angular.z = 0.0                 
                                     
             self.publisher_.publish(twist)
