@@ -12,6 +12,10 @@ from math import atan2
 import pickle
 import cmath
 from nav_msgs.msg import Odometry
+import paho.mqtt.client as mqtt
+import time
+tables=[]
+MQTT_BROKER = '192.168.1.102'
 # import tf2_ros
 # from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 # import RPI.GPIO as GPIO
@@ -64,12 +68,14 @@ class Auto_Mover(Node):
         self.y = -1
         super().__init__('auto_mover')
         self.publisher_ = self.create_publisher(geometry_msgs.msg.Twist, 'cmd_vel',10)
-        self.user_subscription = self.create_subscription(String,
-                                                          'user',self.user_sub,10)
+        # self.user_subscription = self.create_subscription(String,
+                                                        #   'user',self.user_sub,10)
         self.odom_subsription = self.create_subscription(Odometry,
             'odom',
             self.odom_callback,
             10)
+        self.sim_can_subscription = self.create_subscription(String,'can',self.can_sub,10)
+        self.sim_dock_subscription = self.create_subscription(String,'dock',self.can_sub,10)
         # self.occ_subscription = self.create_subscription(
         #     OccupancyGrid,
         #     'map',
@@ -84,25 +90,44 @@ class Auto_Mover(Node):
             self.scan_callback,
             qos_profile_sensor_data)  
         
-        # self.tfBuffer = tf2_ros.Buffer()
-        # self.tfListener = tf2_ros.TransformListener(self.tfBuffer, self)
-    # def occ_callback(self,msg):
-    #     msgdata = np.array(msg.data)
-    #     # compute histogram to identify percent of bins with -1
-    #     # occ_counts = np.histogram(msgdata,occ_bins)
-    #     # calculate total number of bins
-    #     # total_bins = msg.info.width * msg.info.height
-    #     # log the info
-    #     # self.get_logger().info('Unmapped: %i Unoccupied: %i Occupied: %i Total: %i' % (occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins))
+    def on_message(client, userdata, message):
+        # tables.append(str(message.payload.decode("utf-8")))
+        print("received message: " ,str(message.payload.decode("utf-8")))
+        # print(tables)
+        global table
+        table = str(message.payload.decode("utf-8"))
 
-    #     # make msgdata go from 0 instead of -1, reshape into 2D
-    #     oc2 = msgdata + 1
-    #     # reshape to 2D array using column order
-    #     # self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width,order='F'))
-    #     self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width))
-    #     # print to file
-    #     print(msg)
-    #     np.savetxt(mapfile, self.occdata)
+    def on_connect(client, userdata, flags, rc):
+        # This will be called once the client connects
+        print(f"Connected with result code {rc}")
+        # Subscribe here!
+        client.subscribe("TableNo")
+
+    def can_sub(self,msg):
+        global can
+        can = msg.data
+        self.c = can
+    def docked_sub(self,msg):
+        global docked
+        docked = msg.data
+        
+
+
+    client = mqtt.Client("Turtlebot")
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.username_pw_set("roger", "password")
+    client.connect(MQTT_BROKER, 1883)
+
+    if docked == 'Y'or time.sleep(10):
+    
+        client.loop_start()
+    if can == 'Y':
+        client.loop_stop()
+
+    
+
+
 
 
     def odom_callback(self, msg):
@@ -136,8 +161,8 @@ class Auto_Mover(Node):
     
         # # print("qewagdsfnc")
     
-    def user_sub(self, msg):
-        self.table = int(msg.data)
+    # def user_sub(self, msg):
+    #     self.table = int(msg.data)
         # print("in subcriber user")    
 
     def scan_callback(self, msg):
@@ -322,9 +347,12 @@ class Auto_Mover(Node):
     def path(self):
         rclpy.spin_once(self)
         twist = geometry_msgs.msg.Twist()
-        # table = 2
+        
+        table = self.table
+        print("table", table)
         # print("table",Table)
-        self.table = int(input("input table number: "))
+        # self.table = int(input("input table number: "))
+        
         try:
             if self.table == 1:
                 
@@ -404,7 +432,10 @@ class Auto_Mover(Node):
             if self.table == 5:
                 new_path[0] = 8
             print(new_path)
-            self.run_combi(new_path)                    
+            if self.c == 'N'or time.sleep(10):
+                self.run_combi(new_path)  
+                print("returning")
+                #put docking function here                  
             
 
             if self.table == 0:
@@ -414,14 +445,7 @@ class Auto_Mover(Node):
             twist.linear.x = 0.0
             twist.angular.z = 0.0
             self.publisher_.publish(twist)
-def on_table_num(client, userdata, msg):
-    global table_num 
-    table_num = int(msg.payload.decode('utf-8'))
-    print(table_num) # added cuz without this IT WONT WORK
-
     
-
-
 def main(args = None):
 
     try:
