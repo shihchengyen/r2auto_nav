@@ -23,7 +23,7 @@ print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
 angle_error = 2
-paths = {1:[0],2:[0,2],3:[0,2],4:[0,3],5:[0,4],6:[0,2,5,6]}
+paths = {1:[0],2:[0,2],3:[0,2],4:[0,2,3],5:[0,4],6:[0,2,5,6]}
 # print("in in in ")
 count = 0
 rotatechange = 0.1
@@ -66,10 +66,10 @@ class Auto_Mover(Node):
         self.publisher_ = self.create_publisher(geometry_msgs.msg.Twist, 'cmd_vel',10)
         self.user_subscription = self.create_subscription(String,
                                                           'user',self.user_sub,10)
-        # self.odom_subsription = self.create_subscription(Odometry,
-        #     'odom',
-        #     self.odom_callback,
-        #     10)
+        self.odom_subsription = self.create_subscription(Odometry,
+            'odom',
+            self.odom_callback,
+            10)
         # self.occ_subscription = self.create_subscription(
         #     OccupancyGrid,
         #     'map',
@@ -77,7 +77,7 @@ class Auto_Mover(Node):
         #     qos_profile_sensor_data)
         # self.occ_subscription  # prevent unused variable warning
         # self.occdata = np.array([])
-        self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
+        # self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
         self.subscription = self.create_subscription(
             LaserScan,
             'scan',
@@ -178,58 +178,7 @@ class Auto_Mover(Node):
         # self.angle_go = math.radians(lr2i)
         # log the info
         # self.get_logger().info('Shortest distance at %i degrees' % lr2i)    
-    def rotatebot(self, rot_angle):
-        print("in rotate")
-        # self.get_logger().info('In rotatebot')
-        # create Twist object
-        twist = geometry_msgs.msg.Twist()
-        # get current yaw angle
-        current_yaw = self.orien
-        # log the info
-        self.get_logger().info('Current: %f' % math.degrees(current_yaw))
-        # we are going to use complex numbers to avoid problems when the angles go from
-        # 360 to 0, or from -180 to 180
-        c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-        # calculate desired yaw
-        target_yaw = current_yaw + math.radians(rot_angle)
-        # convert to complex notation
-        c_target_yaw = complex(math.cos(target_yaw),math.sin(target_yaw))
-        self.get_logger().info('Desired: %f' % math.degrees(cmath.phase(c_target_yaw)))
-        # divide the two complex numbers to get the change in direction
-        c_change = c_target_yaw / c_yaw
-        # get the sign of the imaginary component to figure out which way we have to turn
-        c_change_dir = np.sign(c_change.imag)
-        # set linear speed to zero so the TurtleBot rotates on the spot
-        twist.linear.x = 0.0
-        # set the direction to rotate
-        twist.angular.z = c_change_dir * rotatechange
-        # start rotation
-        self.publisher_.publish(twist)
-
-        # we will use the c_dir_diff variable to see if we can stop rotating
-        c_dir_diff = c_change_dir
-        # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
-        # if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
-        # becomes -1.0, and vice versa
-        while(c_change_dir * c_dir_diff > 0):
-            # allow the callback functions to run
-            rclpy.spin_once(self)
-            current_yaw = self.orien
-            # convert the current yaw to complex form
-            c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-            # self.get_logger().info('Current Yaw: %f' % math.degrees(current_yaw))
-            # get difference in angle between current and target
-            c_change = c_target_yaw / c_yaw
-            # get the sign to see if we can stop
-            c_dir_diff = np.sign(c_change.imag)
-            # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
-
-        self.get_logger().info('End Yaw: %f' % math.degrees(current_yaw))
-        # set the rotation speed to 0
-        twist.angular.z = 0.0
-        # stop the rotation
-        self.publisher_.publish(twist)
-  
+    
     def pick_direction(self):
         try:
             rclpy.spin_once(self)
@@ -393,8 +342,16 @@ class Auto_Mover(Node):
                     self.run_combi([0])
             if self.table == 6:
                 rclpy.spin_once(self)
-                print("self dir in 6",self.dir)
                 # self.run_combi(paths[self.table])
+                while abs(int(self.orien*100)) - 110 <=angle_error:
+                        print("Turning to table 6")
+                        rclpy.spin_once(self)
+                        print(math.degrees(self.orien))
+                        print("dis", self.front)
+                        twist.angular.z = 0.3
+                        self.publisher_.publish(twist)
+                print("self dir in 6",self.dir)
+                # 
                 self.pick_direction()
 
         
@@ -403,7 +360,7 @@ class Auto_Mover(Node):
                 for points in paths[self.table]:
                     self.travelling_point(points)
                         
-                if self.table == 3:
+                if self.table == 3 or self.table == 4:
                     while abs(int(self.orien*100)) >=2 :
                         rclpy.spin_once(self)
                         twist.angular.z = 0.3
@@ -412,7 +369,7 @@ class Auto_Mover(Node):
                         print(math.degrees(self.orien))
                         print( abs(int(self.orien*100)))
                 else:
-                    while abs(int(self.orien*100)) <= 290:
+                    while abs(int(self.orien*100)) <= 310:
                         print("Turning to table, not 3")
                         rclpy.spin_once(self)
                         # print(math.degrees(self.orien))
