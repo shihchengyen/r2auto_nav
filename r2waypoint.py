@@ -7,20 +7,21 @@ from pathlib import Path
 import pandas as pd
 import pickle
 print("something")
-waypoints = {0:([],[]),1:([],[]),2:([],[]),3:([],[]),4:([],[]),5:([],[]),6:([],[])}
-
+waypoints = {0:[[],[]],1:[[],[]],2:[[],[]],3:[[],[]],4:[[],[]],5:[[],[]],6:[[],[]]}
+with open("waypoints_sim.pickle","rb") as handle:
+    waypoints = pickle.load(handle)
 class Waypoint(Node):
     def __init__(self) -> None:
         super().__init__('waypoint')
-        # self.subscription = self.create_subscription(Odometry,'odom',self.odom_callback,10)
-        self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
+        self.subscription = self.create_subscription(Odometry,'odom',self.odom_callback,10)
+        # self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
 
     def odom_callback(self,msg):        
             
-            # self.pos = msg.pose.pose.position 
-            # self.orien = msg.pose.pose.orientation
-            self.pos = msg.position 
-            self.orien = msg.orientation
+            self.pos = msg.pose.pose.position 
+            self.orien = msg.pose.pose.orientation
+            # self.pos = msg.position 
+            # self.orien = msg.orientation
             # self.get_logger().info('I heard: "%s"' % self.pos)
             
                 # co[tb_int-1][1].extend((pos.x,pos.y,pos.z))
@@ -36,8 +37,8 @@ class Waypoint(Node):
             rclpy.spin_once(self)
             # print(self.pos)
             tb_int = int(input("Enter table number: "))
-            waypoints[tb_int][0].extend((self.pos.x,self.pos.y,self.pos.z))
-            waypoints[tb_int][1].extend((self.orien.x,self.orien.y,self.orien.z,self.orien.z,self.orien.w))
+            waypoints[tb_int][0] = [self.pos.x,self.pos.y,self.pos.z]
+            waypoints[tb_int][1] = [self.orien.x,self.orien.y,self.orien.z,self.orien.z,self.orien.w]
             # print(waypoints)
         if cmd_char == 's': 
             print("saving...")
