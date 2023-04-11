@@ -30,18 +30,19 @@ import time
 import json
 
 # constants
-ROTATECHANGE = 0.1
-SPEEDCHANGE = 0.05
+DOCK_DISTANCE = 0.283
+ROTATECHANGE = 0.12
+SPEEDCHANGE = 0.175
 ANGLE_THRESHOLD = 1
 OCC_BINS = [-1, 0, 100, 101]
 STOP_DISTANCE = 0.08
-RECALIBRATE = 0.4
-FRONT_ANGLE = 30
+RECALIBRATE = 0.6
+FRONT_ANGLE = 22
 FRONT_ANGLES = range(-FRONT_ANGLE,FRONT_ANGLE+1,1)
 WP_FILE = "waypoints.json"
 F = open(WP_FILE, 'r+')
 EXISTING_WAYPOINTS = json.load(F)
-IP_ADDRESS = "172.20.10.10"
+IP_ADDRESS = "172.20.10.5"
 
 
 table_number = -1
@@ -230,39 +231,47 @@ class TableNav(Node):
         x_diff = goal['x'] - self.mapbase.x
         y_diff = goal['y'] - self.mapbase.y
         angle_diff = math.degrees(math.atan2(y_diff, x_diff))
-        '''
         self.get_logger().info('Current angle: %f' % math.degrees(self.yaw))
         self.get_logger().info('Angle difference: %f' % angle_diff)
-        '''
         return angle_diff
     
-    def rotate_to_angle(self, goal):
+    def rotate_to_goal(self, goal):
         twist = Twist()
         twist.linear.x = 0.0
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
 
         curr_angle_diff = self.angle_to(goal)
-        # self.get_logger().info('Current angle diff: %f' % curr_angle_diff)
-        if (curr_angle_diff - math.degrees(self.yaw) > 0):
+        self.get_logger().info('Current angle diff: %f' % curr_angle_diff)
+        diff = curr_angle_diff - math.degrees(self.yaw)
+        if diff > 180:
+            diff -= 360
+        elif diff <= -180:
+            diff += 360
+        if (diff > 0):
             twist.angular.z += ROTATECHANGE
         else:
             twist.angular.z -= ROTATECHANGE
         self.publisher_.publish(twist)
 
         while (abs(curr_angle_diff - math.degrees(self.yaw)) > ANGLE_THRESHOLD):
+            '''
+            if (abs(curr_angle_diff - math.degrees(self.yaw)) < 10 and abs(twist.angular.z) == ROTATECHANGE):
+                twist.angular.z *= 0.25 
+                self.publisher_.publish(twist)
+            '''
             rclpy.spin_once(self)
-            curr_angle_diff = self.angle_to(goal)
         twist.angular.z = 0.0   
         self.publisher_.publish(twist)
 
-    def rotate_to_smallest(self, degree):
+    def rotate_to(self, degree):
         twist = Twist()
         twist.linear.x = 0.0
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
         degree = float(degree)
         desired_position = math.degrees(self.yaw) + degree
+
         # self.get_logger().info('Current angle diff: %f' % curr_angle_diff)
         if (degree > 0):
             twist.angular.z += ROTATECHANGE
@@ -272,6 +281,8 @@ class TableNav(Node):
 
         self.get_logger().info('degree: %s' % str(degree))
         while (abs(desired_position - math.degrees(self.yaw)) > ANGLE_THRESHOLD):
+
+            self.get_logger().info('desired - yaw: %s' % str(abs(desired_position - math.degrees(self.yaw))))
             rclpy.spin_once(self)
 
     def moveToTable(self, table_number):
@@ -281,7 +292,7 @@ class TableNav(Node):
             rclpy.spin_once(self) 
             self.get_logger().info('Current waypoint target: %d' % index)
             # self.rotatebot(self.angle_to(waypoint) - math.degrees(self.yaw))
-            self.rotate_to_angle(waypoint)
+            self.rotate_to_goal(waypoint)
             rclpy.spin_once(self) 
             twist.linear.x = SPEEDCHANGE
             twist.angular.z = 0.0
@@ -297,24 +308,25 @@ class TableNav(Node):
                 travelled += diff
                 self.get_logger().info('travelled: %s' % str(travelled))
                 if (travelled > RECALIBRATE): 
-                    self.rotate_to_angle(waypoint) 
+                    self.rotate_to_goal(waypoint) 
                     travelled = 0
                 twist.linear.x = SPEEDCHANGE
                 twist.angular.z = 0.0
                 self.publisher_.publish(twist)
         
         if(table_number == "6"):
+            self.get_logger().info('initialising table 6')
             combined_ranges = np.concatenate((self.laser_range[0:22], self.laser_range[-22:]), axis=None)
             min_index = np.argmin(combined_ranges)
             if min_index < 22:
                 degree = min_index
             else:
                 degree = - (22 - min_index)
-            self.rotate_to_smallest(degree)
+            self.rotate_to(degree)
             twist.linear.x = SPEEDCHANGE
             twist.angular.z = 0.0
             self.publisher_.publish(twist)
-            while (self.laser_range[0] > STOP_DISTANCE * 1.5):
+            while (self.laser_range[0] > DOCK_DISTANCE + 0.02):
                 rclpy.spin_once(self) 
                 self.get_logger().info('laser_range[0]: %s' % str(self.laser_range[0]))
         twist.linear.x = 0.0
@@ -324,13 +336,14 @@ class TableNav(Node):
     def returnFromTable(self, table_number):
         twist = Twist()
         table_number = str(table_number)
+        global STOP_DISTANCE
         for index, waypoint in enumerate(EXISTING_WAYPOINTS[table_number][-2::-1]): 
 
             rclpy.spin_once(self) 
             self.get_logger().info('Current waypoint target: %d' % index)
             # self.rotatebot(self.angle_to(waypoint) - math.degrees(self.yaw))
 
-            self.rotate_to_angle(waypoint)
+            self.rotate_to_goal(waypoint)
             rclpy.spin_once(self) 
             twist.linear.x = SPEEDCHANGE
             twist.angular.z = 0.0
@@ -346,31 +359,19 @@ class TableNav(Node):
                 travelled += diff
                 self.get_logger().info('travelled: %s' % str(travelled))
                 if (travelled > RECALIBRATE): 
-                    self.rotate_to_angle(waypoint) 
+                    self.rotate_to_goal(waypoint) 
                     travelled = 0
                 twist.linear.x = SPEEDCHANGE
                 twist.angular.z = 0.0
                 self.publisher_.publish(twist)
+        twist.linear.x = 0.025
+        twist.angular.z = 0.0
+        self.publisher_.publish(twist)
+        while (self.laser_range[0] > DOCK_DISTANCE):
+            rclpy.spin_once(self)
         twist.linear.x = 0.0
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
-        '''
-            self.get_logger().info('Current waypoint target: %d' % index)
-            self.rotatebot(self.angle_to(waypoint) - math.degrees(self.yaw))
-            self.waypointDistance = self.distance_to(waypoint)
-            
-            while (self.waypointDistance > STOP_DISTANCE and self.waypointMinDistance > self.waypointDistance):
-                rclpy.spin_once(self)
-                twist.linear.x = SPEEDCHANGE
-                twist.angular.z = 0.0
-                self.publisher_.publish(twist)
-                self.waypointDistance = self.distance_to(waypoint)
-                self.waypointMinDistance = min(self.waypointMinDistance, self.waypointDistance)
-            self.waypointMinDistance = 10000
-        twist.linear.x = 0.0
-        twist.angular.z = 0.0
-        self.publisher_.publish(twist)
-        '''
 
      
     def move(self):
@@ -385,7 +386,7 @@ class TableNav(Node):
                 self.returnFromTable(table_number)
                 '''
                 global table_number
-                global next_table_number
+                global next_table_num
                 print("self.switch state: %s" % str(self.switch))
                 print("table_number: %s" % str(table_number))
                 if (table_number != -1 and self.switch):
@@ -401,8 +402,8 @@ class TableNav(Node):
                     # return to dispenser
                     self.returnFromTable(table_number)
                     # take next table number if available
-                    if (next_table_number != -1):
-                        table_number = next_table_number
+                    if (next_table_num != -1):
+                        table_number = next_table_num
                         next_table_number = -1
                     # else reset to -1
                     else:
