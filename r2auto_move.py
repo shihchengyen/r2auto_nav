@@ -34,7 +34,7 @@ count = 0
 rotatechange = 0.1
 table = 0
 can = bool
-irdata = [-1,-1]
+
 # quad_1 = range(0, 0.5 * pi)
 # quad_2 = range (0.5 * pi, pi)
 # quad_3 = range(pi, -0.5 * pi)
@@ -64,6 +64,7 @@ class Auto_Mover(Node):
     count = 0
     front = 5.0
     yaw = 0.0
+    irdata = [-1,-1]
     # range = np.array([])
     def __init__(self) -> None:
         
