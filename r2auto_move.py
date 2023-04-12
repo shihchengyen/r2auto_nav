@@ -27,7 +27,7 @@ print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
 angle_error = 2
-paths = {1:[0],2:[0,1,2],3:[0,1,2],4:[0,2,3],5:[0,4],6:[0,2,3,5,6]}
+paths = {1:[0],2:[0,1,2],3:[0,1,2],4:[0,1,2,3],5:[0,4],6:[0,2,3,5,6]}
 # print("in in in ")
 count = 0
 rotatechange = 0.1
@@ -264,11 +264,11 @@ class Auto_Mover(Node):
                     elif point == 3 or point == 7 or point == 4:
                         print("for point 3 and 4, but point is:",point)
                         if  (abs(int(abs(self.goal_y)*100)-int(abs(self.y)*100 ))) >=2 :
-                            if self.goal_y > self.y:
+                            if abs(self.goal_y) > abs(self.y):
 
                                 twist.linear.x = 0.1
                                 twist.angular.z = 0.0  
-                            if self.goal_y < self.y :
+                            if abs(self.goal_y) < abs(self.y) :
                                 twist.linear.x = -0.1
                                 twist.angular.z = 0.0 
                             print("current y", self.y)
@@ -389,14 +389,14 @@ class Auto_Mover(Node):
                         print(abs(int(self.orien*100)))
                         twist.angular.z = 0.3
                         self.publisher_.publish(twist)
-                while self.front > 0.3:
+                while self.front > 0.2:
                     rclpy.spin_once(self)
                     print("moving to table")
                     twist.linear.x = 0.1
                     twist.angular.z = 0.0 
                     self.publisher_.publish(twist)
                     
-                    if self.front <= 0.25:
+                    if self.front <= 0.2:
                         print("stopping at table")
                         twist.linear.x =0.0
                         
