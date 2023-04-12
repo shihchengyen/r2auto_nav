@@ -30,12 +30,12 @@ import time
 import json
 
 # constants
-DOCK_DISTANCE = 0.28
+DOCK_DISTANCE = 0.278
 DOCK_DISTANCE_CAN = 0.17 # if can is always loaded beforehand
 ROTATECHANGE = 0.4
 SPEEDCHANGE = 0.175
 ANGLE_THRESHOLD = 1
-STOP_DISTANCE = 0.055
+STOP_DISTANCE = 0.06
 RECALIBRATE = 0.75
 FRONT_ANGLE = 23
 FRONT_ANGLES = range(-FRONT_ANGLE,FRONT_ANGLE+1,1)
@@ -239,7 +239,7 @@ class TableNav(Node):
             if (abs(math.degrees(self.yaw) - curr_angle_diff) < 10 and abs(twist.angular.z) == ROTATECHANGE):
                 twist.angular.z = twist.angular.z * 0.25  
             min_angle = min(abs(math.degrees(self.yaw) - curr_angle_diff), min_angle)
-            if (min_angle > abs(math.degrees(self.yaw) - curr_angle_diff)):
+            if (min_angle < abs(math.degrees(self.yaw) - curr_angle_diff)):
                 break_flag = True
                 break
             self.publisher_.publish(twist)
@@ -256,17 +256,24 @@ class TableNav(Node):
         self.publisher_.publish(twist)
         degree = float(degree)
         desired_position = math.degrees(self.yaw) + degree
+        if (desired_position > 180):
+            desired_position -= 360
+        elif (desired_position < -180):
+            desired_position += 360
 
         # self.get_logger().info('Current angle diff: %f' % curr_angle_diff)
+
         if (degree > 0):
-            twist.angular.z += 0.25 * ROTATECHANGE
+            twist.angular.z += ROTATECHANGE
         else:
-            twist.angular.z -= 0.25 * ROTATECHANGE
+            twist.angular.z -= ROTATECHANGE
         self.publisher_.publish(twist)
 
         self.get_logger().info('degree: %s' % str(degree))
         while (abs(desired_position - math.degrees(self.yaw)) > ANGLE_THRESHOLD):
-
+            if(abs(desired_position - math.degrees(self.yaw)) <= 10 and twist.angular.z == ROTATECHANGE):
+                twist.angular.z = 0.25 * twist.angular.z
+                self.publisher_.publish(twist)
             self.get_logger().info('desired - yaw: %s' % str(abs(desired_position - math.degrees(self.yaw))))
             rclpy.spin_once(self)
 
@@ -302,6 +309,7 @@ class TableNav(Node):
                     travelled = 0
         
         if(table_number == "6"):
+            self.rotate_to(270 - math.degrees(self.yaw))
             self.get_logger().info('initialising table 6')
             min_distance= 10000;
             min_degree = 360
@@ -309,12 +317,13 @@ class TableNav(Node):
                 self.get_logger().info('%d, %f' % (angle, self.laser_range[angle]))
                 if(self.laser_range[angle] < min_distance):
                     min_degree = angle
+                    min_distance = self.laser_range[angle]
+            '''
             while(not math.isnan(min_degree)):
                 for angle in FRONT_ANGLES:
                     self.get_logger().info('%d, %f' % (angle, self.laser_range[angle]))
                     if(self.laser_range[angle] < min_distance):
                         min_degree = angle
-            '''
             combined_ranges = np.concatenate((self.laser_range[0:23], self.laser_range[-23:]), axis=None)
             while(math.isnan(combined_ranges[0])):
                 rclpy.spin_once(self)
@@ -361,10 +370,10 @@ class TableNav(Node):
 
             self.rotate_to_goal(waypoint)
             rclpy.spin_once(self) 
+            self.waypointDistance = self.distance_to(waypoint)
             twist.linear.x = SPEEDCHANGE
             twist.angular.z = 0.0
             self.publisher_.publish(twist)
-            self.waypointDistance = self.distance_to(waypoint)
             print('published twist')
 
             travelled = 0
@@ -386,9 +395,10 @@ class TableNav(Node):
         twist.linear.x = 0.025
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
-        while (self.laser_range[0] > DOCK_DISTANCE or math.isnan(self.laser_range)):
+        while (self.laser_range[0] > DOCK_DISTANCE or math.isnan(self.laser_range[0])):
             self.get_logger().info('docking 1')
             rclpy.spin_once(self)
+            '''
         if (self.mapbase.x <= EXISTING_WAYPOINTS["1"][0]["x"]):
             twist.linear.x = 0.025
             twist.angular.z = 0.0
@@ -396,7 +406,7 @@ class TableNav(Node):
             while (self.laser_range[0] > DOCK_DISTANCE_CAN or math.isnan(self.laser_range[0])):
                 self.get_logger().info('docking with can')
                 rclpy.spin_once(self)
-
+            '''
         twist.linear.x = 0.0
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
@@ -415,17 +425,17 @@ class TableNav(Node):
                 '''
                 global table_number
                 global next_table_num
-                print("self.switch state: %s" % str(self.switch))
-                print("table_number: %s" % str(table_number))
+
+                self.get_logger().info("self.switch state: %s" % str(self.switch))
+                self.get_logger().info("table_number: %s" % str(table_number))
                 if (table_number != -1 and self.switch):
-                    print("Met conditions")
+                    self.get_logger().info("Met conditions")
                     # move to table
-                    print("table_number: %s" % str(table_number))
+                    self.get_logger().info("table_number: %s" % str(table_number))
                     self.moveToTable(table_number)
                     # wait until switch detects off
                     while(self.switch):
-                        print("waiting for can to be removed")
-                        print("self.switch state: %s" % str(self.switch))
+                        self.get_logger().info("wating for can to be removed")
                         rclpy.spin_once(self)
                     # return to dispenser
                     self.returnFromTable(table_number)
