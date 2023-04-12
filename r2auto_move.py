@@ -71,7 +71,7 @@ class Auto_Mover(Node):
         self.y = -1
         super().__init__('auto_mover')
         self.publisher_ = self.create_publisher(geometry_msgs.msg.Twist, 'cmd_vel',10)
-        self.sim_can_subscription = self.create_subscription(Bool,'can',self.can_sub,10)
+        self.sim_can_subscription = self.create_subscription(Bool,'can',self.can_callback,10)
         self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
         self.subscription = self.create_subscription(
             LaserScan,
@@ -85,12 +85,8 @@ class Auto_Mover(Node):
         self.irdata[0] = msg.data
     def ir_callbackR (self,msg):
         self.irdata[1] = msg.data
-
-    def can_sub(self,msg):
+    def can_callback(self,msg):
         self.can = msg.data
-
-
-
     def odom_callback(self, msg):
         # # print("callback")
         #For map2base
@@ -297,6 +293,56 @@ class Auto_Mover(Node):
     def run_combi(self,paths):
         for point in paths:
             self.travelling_point(point)
+
+    def dock(self):
+        twist = Twist()
+        print("in IR_follow")
+        follow = True
+        extreme = True
+        while (follow == True):
+            print(GPIO.input(L))
+            print(GPIO.input(R))
+            if(GPIO.input(L)==0 and GPIO.input(R)==0): #Front
+                twist.linear.x = -0.02
+                twist.angular.z = 0.0
+                print(twist.linear.x)
+                time.sleep(1)
+                self.publisher_.publish(twist)
+                print("publishing")
+                if (extreme == True and GPIO.input(L)!=0 and GPIO.input(R)!=0): #extreme case where bot is perpendicular, run once
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                time.sleep(1)
+                self.publisher_.publish(twist)
+                while (GPIO.input(L)!=0 and GPIO.input(R)!=0):
+                    twist.linear.x = -0.02
+                    time.sleep(0.1)
+                    self.publisher_.publish(twist)
+                    twist.linear.x = 0.0
+                    twist.angular.z = 0.1
+                    time.sleep(0.1)
+                    self.publisher_.publish(twist)
+                    time.sleep(1)
+                    twist.angular.z = 0.0
+                    time.sleep(0.1)
+                    self.publisher_.publish(twist)
+                extreme = False
+            elif (GPIO.input(L)==0 and GPIO.input(R)!=0): #Right (Clockwise)
+                twist.linear.x = 0.0
+                twist.angular.z = 0.1
+                self.publisher_.publish(twist)
+                extreme = False
+            elif (GPIO.input(L)!=0 and GPIO.input(R)==0): #Left (Counter-Clockwise)
+                twist.linear.x = 0.0
+                twist.angular.z = -0.1
+                self.publisher_.publish(twist)
+                extreme = False
+            else: #Dont move
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                self.publisher_.publish(twist)
+                follow = False
+
     def path(self):
         print(can)
         if table == 0:
