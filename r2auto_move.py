@@ -62,9 +62,9 @@ class Auto_Mover(Node):
     count = 0
     front = 5.0
     yaw = 0.0
+    irdata = [-1,-1]
     # range = np.array([])
     def __init__(self) -> None:
-        
         self.x = -1
         self.y = -1
         super().__init__('auto_mover')
@@ -76,7 +76,7 @@ class Auto_Mover(Node):
         #     'odom',
         #     self.odom_callback,
         #     10)
-        self.sim_can_subscription = self.create_subscription(Bool,'can',self.can_sub,10)
+        self.sim_can_subscription = self.create_subscription(Bool,'can',self.can_callback,10)
         # self.sim_dock_subscription = self.create_subscription(String,'dock',self.can_sub,10)
         # self.occ_subscription = self.create_subscription(
         #     OccupancyGrid,
@@ -94,7 +94,7 @@ class Auto_Mover(Node):
         
 
 
-    def can_sub(self,msg):
+    def can_callback(self,msg):
         global can
         can = msg.data
 
@@ -168,7 +168,56 @@ class Auto_Mover(Node):
         # self.angle_go = math.radians(lr2i)
         # log the info
         # self.get_logger().info('Shortest distance at %i degrees' % lr2i)    
-    
+    def dock(self):
+        
+        twist = geometry_msgs.msg.Twist()
+        print("in IR_follow")
+        follow = True
+        extreme = True
+        while (follow == True):
+            rclpy.spin_once(self)
+            if(self.self.irdata[0]==0 and self.self.irdata[1]==0): #Front
+                twist.linear.x = -0.02
+                twist.angular.z = 0.0
+                print(twist.linear.x)
+                time.sleep(1)
+                self.publisher_.publish(twist)
+                print("publishing")
+                if (extreme == True and self.self.irdata[0]!=0 and self.irdata[1]!=0): #extreme case where bot is perpendicular, run once
+                    twist.linear.x = 0.0
+                    twist.angular.z = 0.0
+                    time.sleep(1)
+                    self.publisher_.publish(twist)
+                while (self.irdata[0]!=0 and self.irdata[1]!=0):
+                    rclpy.spin_once(self)
+                    twist.linear.x = -0.02
+                    time.sleep(0.1)
+                    self.publisher_.publish(twist)
+                    twist.linear.x = 0.0
+                    twist.angular.z = 0.1
+                    time.sleep(0.1)
+                    self.publisher_.publish(twist)
+                    time.sleep(1)
+                    twist.angular.z = 0.0
+                    time.sleep(0.1)
+                    self.publisher_.publish(twist)
+                extreme = False
+            elif (self.irdata[0]==0 and self.irdata[1]!=0): #Right (Clockwise)
+                twist.linear.x = 0.0
+                twist.angular.z = 0.1
+                self.publisher_.publish(twist)
+                extreme = False
+            elif (self.irdata[0]!=0 and self.irdata[1]==0): #Left (Counter-Clockwise)
+                twist.linear.x = 0.0
+                twist.angular.z = -0.1
+                self.publisher_.publish(twist)
+                extreme = False
+            else: #Dont move
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                self.publisher_.publish(twist)
+                follow = False
+
     def pick_direction(self):
         try:
             rclpy.spin_once(self)
@@ -221,8 +270,8 @@ class Auto_Mover(Node):
         # r = rclpy.Rate(4)
         if point == 7:
             print("point",point)
-            self.goal_x = waypoints[0][0][0]
-            self.goal_y = waypoints[0][0][1]
+            self.goal_x = waypoints[2][0][0]
+            self.goal_y = waypoints[2][0][1]
         elif point == 8:
             self.goal_x = waypoints[4][0][0]
             self.goal_y = waypoints[4][0][1]
@@ -402,14 +451,15 @@ class Auto_Mover(Node):
                         
             new_path = paths[table][::-1]
             if table in  [4 , 5]:
-                new_path[-1] = 7
+                new_path[0] = 7
             if table == 5:
                 new_path[0] = 8
             print(new_path)
             # insert can value here
             if can == False:
-                self.run_combi(new_path)
+                
                 print("returning")
+                self.run_combi(new_path)
                 #put docking function here   
                 self.dock()  
             else:
