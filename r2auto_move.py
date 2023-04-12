@@ -28,7 +28,7 @@ print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
 angle_error = 2
-paths = {1:[0],2:[0,1,2],3:[0,1,2],4:[0,1,2,3],5:[0,4],6:[0,2,3,5,6]}
+paths = {1:[0,1],2:[0,1,3],3:[0,1,2],4:[0,1,3,7],5:[0,4,8],6:[0,1,3,7,5,6]}
 # print("in in in ")
 count = 0
 rotatechange = 0.1
@@ -235,7 +235,14 @@ class Auto_Mover(Node):
                 twist.angular.z = 0.0
                 self.publisher_.publish(twist)
                 follow = False
-
+    def test_angle(self):
+        
+        twist = geometry_msgs.msg.Twist()
+        while True:
+            twist.angular.z = 0.5  
+            print(int(100*self.orien))
+            self.publisher_.publish(twist)
+            rclpy.spin_once(self)
     def pick_direction(self):
         try:
             rclpy.spin_once(self)
@@ -286,11 +293,11 @@ class Auto_Mover(Node):
         
         # rclpy.init_node("speed_controller")
         # r = rclpy.Rate(4)
-        if point == 7:
+        if point == 8:
             print("point",point)
             self.goal_x = waypoints[2][0][0]
             self.goal_y = waypoints[2][0][1]
-        elif point == 8:
+        elif point == 9:
             self.goal_x = waypoints[4][0][0]
             self.goal_y = waypoints[4][0][1]
         else:
@@ -328,7 +335,7 @@ class Auto_Mover(Node):
                         # print("goal", self.goal_x)
                         # print("current y", self.y)
                         # print("goal", self.goal_y)
-                    elif point == 3 or point == 7 or point == 4:
+                    elif point == 3 or point == 9 or point == 4:
                         print("for point 3 and 4, but point is:",point)
                         if  (abs(int(abs(self.goal_y)*100)-int(abs(self.y)*100 ))) >=2 :
 
@@ -375,29 +382,27 @@ class Auto_Mover(Node):
     def dock(self):
         twist = geometry_msgs.msg.Twist()
         print("in IR_follow")
-        follow = True
+        self.follow = True
         extreme = True
-        while (follow == True):
+        while (self.follow == True):
+            print(self.irdata)
             rclpy.spin_once(self)
             if(self.irdata[0]==0 and self.irdata[1]==0): #Front
-                twist.linear.x = -0.02
+                twist.linear.x = -0.05
                 twist.angular.z = 0.0
                 print(twist.linear.x)
-                time.sleep(1)
                 self.publisher_.publish(twist)
                 print("publishing")
                 if (extreme == True and self.irdata[0]!=0 and self.irdata[1]!=0): #extreme case where bot is perpendicular, run once
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
-                    time.sleep(1)
                     self.publisher_.publish(twist)
                 while (self.irdata[0]!=0 and self.irdata[1]!=0):
                     rclpy.spin_once(self)
-                    twist.linear.x = -0.02
-                    time.sleep(0.1)
+                    twist.linear.x = -0.05
                     self.publisher_.publish(twist)
                     twist.linear.x = 0.0
-                    twist.angular.z = 0.1
+                    twist.angular.z = 0.3
                     time.sleep(0.1)
                     self.publisher_.publish(twist)
                     time.sleep(1)
@@ -407,19 +412,19 @@ class Auto_Mover(Node):
                 extreme = False
             elif (self.irdata[0]==0 and self.irdata[1]!=0): #Right (Clockwise)
                 twist.linear.x = 0.0
-                twist.angular.z = 0.1
+                twist.angular.z = -0.3
                 self.publisher_.publish(twist)
                 extreme = False
             elif (self.irdata[0]!=0 and self.irdata[1]==0): #Left (Counter-Clockwise)
                 twist.linear.x = 0.0
-                twist.angular.z = -0.1
+                twist.angular.z = 0.3
                 self.publisher_.publish(twist)
                 extreme = False
-            else: #Dont move
+            elif (self.irdata[0]!=0 and self.irdata[1]!=0): #Dont move
                 twist.linear.x = 0.0
                 twist.angular.z = 0.0
                 self.publisher_.publish(twist)
-                follow = False
+                self.follow = False
 
     def path(self):
         try:
@@ -436,31 +441,33 @@ class Auto_Mover(Node):
             # table = int(input("input table number: "))
         
             if table == 1:
-                #self.get_logger().info('My orientation is'+ str(self.orien))
-                while abs(int(self.orien * 100)) >= 2:
-                        self.get_logger().info("Turning to table 1")
-                        rclpy.spin_once(self)
-                        # self.get_logger().info("My orientation is " + str(math.degrees(self.orien)))
-                        print(math.degrees(self.orien))
-                        print("dis", self.front)
-                        twist.angular.z = 0.3
-                        self.publisher_.publish(twist)
-                while self.front > 0.25:
-                        rclpy.spin_once(self)
-                        print("heading to table 1")
-                        print(self.front)
-                        print(math.degrees(self.orien))
-                        twist.linear.x = 0.1
-                        twist.angular.z = 0.0                 
-                                    
-                        self.publisher_.publish(twist)
+                self.run_combi(paths[table])
 
-                if self.front <= 0.25:
-                    print("stopping")
-                    print(self.front)
-                    twist.linear.x =0.0
-                    self.publisher_.publish(twist)
-                    self.run_combi([0])
+                #self.get_logger().info('My orientation is'+ str(self.orien))
+                # while abs(int(self.orien * 100)) >= 2:
+                #         self.get_logger().info("Turning to table 1")
+                #         rclpy.spin_once(self)
+                #         # self.get_logger().info("My orientation is " + str(math.degrees(self.orien)))
+                #         print(math.degrees(self.orien))
+                #         print("dis", self.front)
+                #         twist.angular.z = 0.3
+                #         self.publisher_.publish(twist)
+                # while self.front > 0.25:
+                #         rclpy.spin_once(self)
+                #         print("heading to table 1")
+                #         print(self.front)
+                #         print(math.degrees(self.orien))
+                #         twist.linear.x = 0.1
+                #         twist.angular.z = 0.0                 
+                                    
+                #         self.publisher_.publish(twist)
+
+                # if self.front <= 0.25:
+                #     print("stopping")
+                #     print(self.front)
+                #     twist.linear.x =0.0
+                #     self.publisher_.publish(twist)
+                #     self.run_combi([0])
             if table == 6:
                 rclpy.spin_once(self)
                 self.run_combi(paths[table])
@@ -481,32 +488,32 @@ class Auto_Mover(Node):
                 for points in paths[table]:
                     self.travelling_point(points)
                         
-                if table == 3 or table == 4:
-                    while abs(int(self.orien*100)) <=311 :
-                        rclpy.spin_once(self)
-                        twist.angular.z = 0.3
-                        self.publisher_.publish(twist)
-                        print("Turning to table")
-                        print(math.degrees(self.orien))
-                        print( abs(int(self.orien*100)))
-                else:
-                    while abs(int(self.orien*100)) >= 2:
-                        print("Turning to table, not 3")
-                        rclpy.spin_once(self)
-                        # print(math.degrees(self.orien))
-                        print(abs(int(self.orien*100)))
-                        twist.angular.z = 0.22
-                        self.publisher_.publish(twist)
-                while self.front > 0.25:
-                    rclpy.spin_once(self)
-                    print("moving to table")
-                    twist.linear.x = 0.1
-                    twist.angular.z = 0.0  
-                    self.publisher_.publish(twist)
+                # if table == 3 or table == 4:
+                #     while abs(int(self.orien*100)) <=311 :
+                #         rclpy.spin_once(self)
+                #         twist.angular.z = 0.3
+                #         self.publisher_.publish(twist)
+                #         print("Turning to table")
+                #         print(math.degrees(self.orien))
+                #         print( abs(int(self.orien*100)))
+                # else:
+                #     while abs(int(self.orien*100)) >= 2:
+                #         print("Turning to table, not 3")
+                #         rclpy.spin_once(self)
+                #         # print(math.degrees(self.orien))
+                #         print(abs(int(self.orien*100)))
+                #         twist.angular.z = 0.22
+                #         self.publisher_.publish(twist)
+                # while self.front > 0.25:
+                #     rclpy.spin_once(self)
+                #     print("moving to table")
+                #     twist.linear.x = 0.1
+                #     twist.angular.z = 0.0  
+                #     self.publisher_.publish(twist)
                     
-                    if self.front <= 0.25:
-                        print("stopping at table")
-                        twist.linear.x =0.0
+                #     if self.front <= 0.25:
+                #         print("stopping at table")
+                #         twist.linear.x =0.0
             if table in [1,2]:
                 self.present_can(310)
             else:
@@ -523,15 +530,17 @@ class Auto_Mover(Node):
                 
                 print("returning")
                 self.run_combi(new_path)
+                self.present_can(-50)
                 #put docking function here   
-                # self.dock()  
+                self.dock()  
             else:
                 time.sleep(10)
                 print("returning but no can reading")
                 self.run_combi(new_path)
+                self.present_can(-50)
                 
                 #put docking function here   
-                # self.dock()  
+                self.dock()  
         except KeyboardInterrupt:
             self.get_logger().info('I stopped')
             self.stopbot()
@@ -558,7 +567,7 @@ def main(args = None):
     try:
         rclpy.init(args = args)
         auto_move = Auto_Mover()
-        
+        # auto_move.test_angle()
         # auto_move.rotatebot(90) 
         
             # to get ip address of the laptop
@@ -572,7 +581,7 @@ def main(args = None):
             client.loop_start()
             client.subscribe("TableNo")
             rclpy.spin_once(auto_move)
-            
+            # auto_move.dock()
             if can == True:
                 auto_move.path()
             else:
