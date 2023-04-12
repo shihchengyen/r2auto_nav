@@ -6,6 +6,7 @@ from sensor_msgs.msg import LaserScan
 import geometry_msgs.msg
 from geometry_msgs.msg import Pose
 from std_msgs.msg import String
+from std_msgs.msg import Bool
 import numpy as np
 import math
 from math import atan2
@@ -14,7 +15,6 @@ import cmath
 from nav_msgs.msg import Odometry
 import paho.mqtt.client as mqtt
 import time
-tables=[]
 MQTT_BROKER = '192.168.1.102'
 # import tf2_ros
 # from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
@@ -27,11 +27,12 @@ print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
 angle_error = 2
-paths = {1:[0],2:[0,2],3:[0,2],4:[0,2,3],5:[0,4],6:[0,2,5,6]}
+paths = {1:[0],2:[0,1,2],3:[0,1,2],4:[0,2,3],5:[0,4],6:[0,2,3,5,6]}
 # print("in in in ")
 count = 0
 rotatechange = 0.1
-
+table = 0
+can = bool
 # quad_1 = range(0, 0.5 * pi)
 # quad_2 = range (0.5 * pi, pi)
 # quad_3 = range(pi, -0.5 * pi)
@@ -54,8 +55,8 @@ def euler_from_quaternion(x, y, z, w):
     return  yaw_z # in radians
 
 class Auto_Mover(Node):
+    docked = ''
     dir = 0.0
-    table = 0
     rot_q = 0.0
     orien = 5.0
     count = 0
@@ -68,14 +69,15 @@ class Auto_Mover(Node):
         self.y = -1
         super().__init__('auto_mover')
         self.publisher_ = self.create_publisher(geometry_msgs.msg.Twist, 'cmd_vel',10)
+        self.dock_publisher = self.create_publisher(Bool,'docking_status',5)
         # self.user_subscription = self.create_subscription(String,
                                                         #   'user',self.user_sub,10)
-        self.odom_subsription = self.create_subscription(Odometry,
-            'odom',
-            self.odom_callback,
-            10)
-        self.sim_can_subscription = self.create_subscription(String,'can',self.can_sub,10)
-        self.sim_dock_subscription = self.create_subscription(String,'dock',self.can_sub,10)
+        # self.odom_subsription = self.create_subscription(Odometry,
+        #     'odom',
+        #     self.odom_callback,
+        #     10)
+        self.sim_can_subscription = self.create_subscription(Bool,'can',self.can_sub,10)
+        # self.sim_dock_subscription = self.create_subscription(String,'dock',self.can_sub,10)
         # self.occ_subscription = self.create_subscription(
         #     OccupancyGrid,
         #     'map',
@@ -83,88 +85,47 @@ class Auto_Mover(Node):
         #     qos_profile_sensor_data)
         # self.occ_subscription  # prevent unused variable warning
         # self.occdata = np.array([])
-        # self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
+        self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
         self.subscription = self.create_subscription(
             LaserScan,
             'scan',
             self.scan_callback,
             qos_profile_sensor_data)  
         
-    def on_message(client, userdata, message):
-        # tables.append(str(message.payload.decode("utf-8")))
-        print("received message: " ,str(message.payload.decode("utf-8")))
-        # print(tables)
-        global table
-        table = str(message.payload.decode("utf-8"))
 
-    def on_connect(client, userdata, flags, rc):
-        # This will be called once the client connects
-        print(f"Connected with result code {rc}")
-        # Subscribe here!
-        client.subscribe("TableNo")
 
     def can_sub(self,msg):
         global can
         can = msg.data
-        self.c = can
-    def docked_sub(self,msg):
-        global docked
-        docked = msg.data
+
+    def dock(self):
+        msg = Bool()
+        msg.data = True
+        self.dock_publisher.publish(msg)  
         
-
-
-    client = mqtt.Client("Turtlebot")
-    client.on_connect = on_connect
-    client.on_message = on_message
-    client.username_pw_set("roger", "password")
-    client.connect(MQTT_BROKER, 1883)
-
-    if docked == 'Y'or time.sleep(10):
-    
-        client.loop_start()
-    if can == 'Y':
-        client.loop_stop()
-
-    
 
 
 
 
     def odom_callback(self, msg):
         # # print("callback")
-        # try:
-        #     trans = self.tfBuffer.lookup_transform('map', 'base_link', rclpy.time.Time())
-        # except (LookupException, ConnectivityException, ExtrapolationException) as e:
-        #     self.get_logger().info('No transformation found')
-        #     return
         #For map2base
-        # self.x = msg.position.x
-        # self.y = msg.position.y
-        # self.rot_q = msg.orientation
+
+        self.x = msg.position.x
+        self.y = msg.position.y
+        self.rot_q = msg.orientation
         # print("In callback")
         # print("self.orien",self.orien)
-        #for map  
-        # cur_pos = trans.transform.translation
-        # cur_rot = trans.transform.rotation
-        # self.x = cur_pos.x
-        # self.y = cur_pos.y
-        # self.orien = euler_from_quaternion(cur_rot.x, cur_rot.y, cur_rot.z, cur_rot.w)
         #for odom
-        self.rot_q = msg.pose.pose.orientation
-        self.x = msg.pose.pose.position.x
-        self.y = msg.pose.pose.position.y
+
+        # self.rot_q = msg.pose.pose.orientation
+        # self.x = msg.pose.pose.position.x
+        # self.y = msg.pose.pose.position.y
+
         self.orien = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
         
         # print(self.rot_q)
         
-        # points_char = int(input("enter waypoint to travel: "))
-    
-        # # print("qewagdsfnc")
-    
-    # def user_sub(self, msg):
-    #     self.table = int(msg.data)
-        # print("in subcriber user")    
-
     def scan_callback(self, msg):
         # create numpy array
         # print("in scan callback")
@@ -292,8 +253,8 @@ class Auto_Mover(Node):
                         twist.linear.x = 0.0
                         twist.angular.z = 0.5 * self.sign
                         print("degree to turn", degree_to_turn)
-                        print("current angle", math.degrees(self.orien))
-                        print("theta", math.degrees(theta))
+                        print("current angle", int(100*(self.orien)))
+                        print("theta", int(100*(theta)))
                         print(self.sign)
                         print(point)
                         # print("current x", self.x)
@@ -324,6 +285,14 @@ class Auto_Mover(Node):
                         break                    
                     elif (abs(int(abs(self.goal_x)*100 -int(abs(self.x)*100 )))) >= 2:
                         # and abs((int(abs(self.goal_y)*100-2)-int(abs(self.y)*100))<= 3)
+                        if (abs(int(abs(self.goal_x)*100 > int(abs(self.x)*100 )))) :
+                                print("f")
+                                twist.linear.x = 0.1
+                                twist.angular.z = 0.0  
+                        else:
+                            print("b")
+                            twist.linear.x = -0.1
+                            twist.angular.z = 0.0 
                         print("moving")
                         print("current x", self.x)
                         print("goal", self.goal_x)
@@ -345,18 +314,22 @@ class Auto_Mover(Node):
         for point in paths:
             self.travelling_point(point)
     def path(self):
+        print(can)
+        if table == 0:
+                print("FAILED TO SUBSCIBE TO USER")
+
         rclpy.spin_once(self)
         twist = geometry_msgs.msg.Twist()
         
-        table = self.table
+        table 
         print("table", table)
         # print("table",Table)
-        # self.table = int(input("input table number: "))
+        # table = int(input("input table number: "))
         
         try:
-            if self.table == 1:
+            if table == 1:
                 
-                while abs(int(self.orien*100)) <=310:
+                while abs(int(self.orien*100)) >=2:
                         print("Turning to table 1")
                         rclpy.spin_once(self)
                         print(math.degrees(self.orien))
@@ -368,20 +341,21 @@ class Auto_Mover(Node):
                         rclpy.spin_once(self)
                         print("heading to table 1")
                         print(self.front)
+                        print(math.degrees(self.orien))
                         twist.linear.x = 0.1
                         twist.angular.z = 0.0                 
                                   
                         self.publisher_.publish(twist)
 
-                if self.front <= 0.25:
+                if self.front <= 0.4:
                     print("stopping")
                     print(self.front)
                     twist.linear.x =0.0
                     self.publisher_.publish(twist)
                     self.run_combi([0])
-            if self.table == 6:
+            if table == 6:
                 rclpy.spin_once(self)
-                # self.run_combi(paths[self.table])
+                self.run_combi(paths[table])
                 # while abs(int(self.orien*100)) - 110 <=angle_error:
                 #         print("Turning to table 6")
                 #         rclpy.spin_once(self)
@@ -395,12 +369,12 @@ class Auto_Mover(Node):
 
         
 
-            if self.table in [2,3,4,5]:
-                for points in paths[self.table]:
+            if table in [2,3,4,5]:
+                for points in paths[table]:
                     self.travelling_point(points)
                         
-                if self.table == 3 or self.table == 4:
-                    while abs(int(self.orien*100)) >=2 :
+                if table == 3 or table == 4:
+                    while abs(int(self.orien*100)) <=311 :
                         rclpy.spin_once(self)
                         twist.angular.z = 0.3
                         self.publisher_.publish(twist)
@@ -408,14 +382,14 @@ class Auto_Mover(Node):
                         print(math.degrees(self.orien))
                         print( abs(int(self.orien*100)))
                 else:
-                    while abs(int(self.orien*100)) <= 310:
+                    while abs(int(self.orien*100)) >= 2:
                         print("Turning to table, not 3")
                         rclpy.spin_once(self)
                         # print(math.degrees(self.orien))
                         print(abs(int(self.orien*100)))
                         twist.angular.z = 0.3
                         self.publisher_.publish(twist)
-                while self.front > 0.25:
+                while self.front > 0.3:
                     rclpy.spin_once(self)
                     print("moving to table")
                     twist.linear.x = 0.1
@@ -426,47 +400,72 @@ class Auto_Mover(Node):
                         print("stopping at table")
                         twist.linear.x =0.0
                         
-            new_path = paths[self.table][::-1]
-            if self.table in  [4 , 5]:
+            new_path = paths[table][::-1]
+            if table in  [4 , 5]:
                 new_path[-1] = 7
-            if self.table == 5:
+            if table == 5:
                 new_path[0] = 8
             print(new_path)
-            if self.c == 'N'or time.sleep(10):
-                self.run_combi(new_path)  
+            # insert can value here
+            if can == False:
+                self.run_combi(new_path)
                 print("returning")
-                #put docking function here                  
+                #put docking function here   
+                self.dock()  
+            else:
+                time.sleep(10)
+                print("returning but no can reading")
+                self.run_combi(new_path)
+                
+                #put docking function here   
+                self.dock()          
             
-
-            if self.table == 0:
-                print("FAILED TO SUBSCIBE TO USER")
         finally:
             # stop moving   
             twist.linear.x = 0.0
             twist.angular.z = 0.0
             self.publisher_.publish(twist)
-    
+
+def table_num(client, userdata, message):
+    print("received message: " ,str(message.payload.decode("utf-8")))
+    global table
+    table = int(message.payload.decode("utf-8"))
+    print(table)
+
+def on_connect(client, userdata, flags, rc):
+    # This will be called once the client connects
+    print(f"Connected with result code {rc}")
+    # Subscribe here!
+    client.subscribe("TableNo")  
+
+
 def main(args = None):
 
     try:
         rclpy.init(args = args)
         auto_move = Auto_Mover()
-        rclpy.spin_once(auto_move) 
+        
         # auto_move.rotatebot(90) 
-        auto_move.path()
+        
             # to get ip address of the laptop
+        #connect to esp32
         while True:
-         #print (table_num)
-        #  if(table_num != -1):
-        #      # send message to esp32 to tell it that the robot has un-docked and is moving to the table
-        #      client.publish("esp32/input", "0")
-        #      #navigation.moveToTable(table_num)
-        #      navigation.dock()
-        #      table_num = -1
-        #      # send message back to esp32 to tell it that the robot has docked
-        #      client.publish("esp32/input", "1")
-         
-         pass
+            client = mqtt.Client("Turtlebot")
+            client.on_connect = on_connect
+            client.on_message = table_num
+            client.username_pw_set("roger", "password")
+            client.connect(MQTT_BROKER, 1883)
+            client.loop_start()
+            client.subscribe("TableNo")
+            rclpy.spin_once(auto_move)
+            
+            if can == True:
+
+                auto_move.path()
+            else:
+                time.sleep(10)
+                auto_move.path()
+
     except KeyboardInterrupt:
         auto_move.destroy_node()
         rclpy.shutdown()
