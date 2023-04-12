@@ -6,6 +6,7 @@ from sensor_msgs.msg import LaserScan
 import geometry_msgs.msg
 from geometry_msgs.msg import Pose
 from std_msgs.msg import String
+from std_msgs.msg import Int16
 from std_msgs.msg import Bool
 import numpy as np
 import math
@@ -33,6 +34,7 @@ count = 0
 rotatechange = 0.1
 table = 0
 can = bool
+irdata = [-1,-1]
 # quad_1 = range(0, 0.5 * pi)
 # quad_2 = range (0.5 * pi, pi)
 # quad_3 = range(pi, -0.5 * pi)
@@ -69,41 +71,23 @@ class Auto_Mover(Node):
         self.y = -1
         super().__init__('auto_mover')
         self.publisher_ = self.create_publisher(geometry_msgs.msg.Twist, 'cmd_vel',10)
-        self.dock_publisher = self.create_publisher(Bool,'docking_status',5)
-        # self.user_subscription = self.create_subscription(String,
-                                                        #   'user',self.user_sub,10)
-        # self.odom_subsription = self.create_subscription(Odometry,
-        #     'odom',
-        #     self.odom_callback,
-        #     10)
         self.sim_can_subscription = self.create_subscription(Bool,'can',self.can_sub,10)
-        # self.sim_dock_subscription = self.create_subscription(String,'dock',self.can_sub,10)
-        # self.occ_subscription = self.create_subscription(
-        #     OccupancyGrid,
-        #     'map',
-        #     self.odom_callback,
-        #     qos_profile_sensor_data)
-        # self.occ_subscription  # prevent unused variable warning
-        # self.occdata = np.array([])
         self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
         self.subscription = self.create_subscription(
             LaserScan,
             'scan',
             self.scan_callback,
             qos_profile_sensor_data)  
+        self.IRLeft_subscriber = self.create_subscription(Int16,'IRLeft',self.ir_callbackL,3)
+        self.IRRight_subscriber = self.create_subscription(Int16,'IRRight',self.ir_callbackR,3)
         
-
+    def ir_callbackL(self, msg):
+        self.irdata[0] = msg.data
+    def ir_callbackR (self,msg):
+        self.irdata[1] = msg.data
 
     def can_sub(self,msg):
-        global can
-        can = msg.data
-
-    def dock(self):
-        msg = Bool()
-        msg.data = True
-        self.dock_publisher.publish(msg)  
-        
-
+        self.can = msg.data
 
 
 
