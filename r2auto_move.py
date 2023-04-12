@@ -171,18 +171,20 @@ class Auto_Mover(Node):
         self.publisher_.publish(twist)
     def present_can (self,theta):
         twist = geometry_msgs.msg.Twist()
-        degree_to_turn = math.degrees(theta - self.orien )
+        degree_to_turn = theta - int(100*self.orien )
         while abs(degree_to_turn) > angle_error:
-                degree_to_turn = math.degrees(theta - self.orien )
+                degree_to_turn = theta - int(100*self.orien )
                 # print("angle finding")
                 # self.rotatebot(degree_to_turn)
+                sign = np.sign(degree_to_turn)
                 twist.linear.x = 0.0
-                twist.angular.z = 0.3 * self.sign
-                self.get_logger().info("Turning to table 1")
+                twist.angular.z = 0.3 * sign
+                # self.get_logger().info("Turning to table 1")
                 rclpy.spin_once(self)
-                self.get_logger().info("My orientation is " + str(math.degrees(self.orien)))
-                #print(math.degrees(self.orien))               
+                # self.get_logger().info("My orientation is " + str(math.degrees(self.orien)))
+                print(math.degrees(self.orien))               
                 self.publisher_.publish(twist)
+        self.stopbot
         
     def dock(self):
         
@@ -438,8 +440,8 @@ class Auto_Mover(Node):
                 while abs(int(self.orien * 100)) >= 2:
                         self.get_logger().info("Turning to table 1")
                         rclpy.spin_once(self)
-                        self.get_logger().info("My orientation is " + str(math.degrees(self.orien)))
-                        #print(math.degrees(self.orien))
+                        # self.get_logger().info("My orientation is " + str(math.degrees(self.orien)))
+                        print(math.degrees(self.orien))
                         print("dis", self.front)
                         twist.angular.z = 0.3
                         self.publisher_.publish(twist)
@@ -505,7 +507,10 @@ class Auto_Mover(Node):
                     if self.front <= 0.25:
                         print("stopping at table")
                         twist.linear.x =0.0
-            self.present_can
+            if table in [1,2]:
+                self.present_can(310)
+            else:
+                self.present_can(0)
             new_path = paths[table][::-1]
             # if table is 4:
             #     new_path[0] = 7
@@ -519,14 +524,14 @@ class Auto_Mover(Node):
                 print("returning")
                 self.run_combi(new_path)
                 #put docking function here   
-                self.dock()  
+                # self.dock()  
             else:
                 time.sleep(10)
                 print("returning but no can reading")
                 self.run_combi(new_path)
                 
                 #put docking function here   
-                self.dock()  
+                # self.dock()  
         except KeyboardInterrupt:
             self.get_logger().info('I stopped')
             self.stopbot()
