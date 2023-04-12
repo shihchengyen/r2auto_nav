@@ -36,7 +36,7 @@ ROTATECHANGE = 0.4
 SPEEDCHANGE = 0.175
 ANGLE_THRESHOLD = 1
 STOP_DISTANCE = 0.06
-RECALIBRATE = 0.75
+RECALIBRATE = 0.6
 FRONT_ANGLE = 23
 FRONT_ANGLES = range(-FRONT_ANGLE,FRONT_ANGLE+1,1)
 WP_FILE = "waypoints.json"
@@ -340,17 +340,19 @@ class TableNav(Node):
             self.publisher_.publish(twist)
             while (self.laser_range[0] > DOCK_DISTANCE + 0.02 or math.isnan(self.laser_range[0])):
                 rclpy.spin_once(self) 
-                if(self.laser_range[0] <= 3 * DOCK_DISTANCE and twist.linear.x == SPEEDCHANGE):
-                    combined_ranges = np.concatenate((self.laser_range[0:23], self.laser_range[-23:]), axis=None)
-                    while(math.isnan(combined_ranges[0])):
-                        rclpy.spin_once(self)
-                        combined_ranges = np.concatenate((self.laser_range[0:23], self.laser_range[-23:]), axis=None)
-                    min_index = np.argmin(combined_ranges)
-                    if min_index < 23:
-                        degree = min_index
-                    else:
-                        degree = - (23 - min_index)
-                    self.rotate_to(degree)
+                if(self.laser_range[0] <= 2.5 * DOCK_DISTANCE and twist.linear.x == SPEEDCHANGE):
+
+                    # repeat calibration
+                    '''
+                    min_distance= 10000;
+                    min_degree = 360
+                    for angle in FRONT_ANGLES:
+                        self.get_logger().info('%d, %f' % (angle, self.laser_range[angle]))
+                        if(self.laser_range[angle] < min_distance):
+                            min_degree = angle
+                            min_distance = self.laser_range[angle]
+                    self.rotate_to(min_degree)
+                    '''
                     twist.linear.x = 0.25 * SPEEDCHANGE
                     self.publisher_.publish(twist)
                 self.get_logger().info('laser_range[0]: %s' % str(self.laser_range[0]))
@@ -392,12 +394,19 @@ class TableNav(Node):
                     travelled = 0
         # set orentation to face 0 degrees and move forward until laser_range[0] hits dockdistance
         self.rotate_to(-math.degrees(self.yaw))
-        twist.linear.x = 0.025
+        twist.linear.x = 0.022
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
-        while (self.laser_range[0] > DOCK_DISTANCE or math.isnan(self.laser_range[0])):
-            self.get_logger().info('docking 1')
-            rclpy.spin_once(self)
+        dock_count = 0
+        while (dock_count < 10):
+            if(self.laser_range[0] >= DOCK_DISTANCE or math.isnan(self.laser_range[0])):
+
+                self.get_logger().info('docking')
+                rclpy.spin_once(self)
+            else:
+                self.get_logger().info('laser_range[0]: %s' % str(self.laser_range[0]))
+                self.get_logger().info('dock count: %s' % str(dock_count))
+                dock_count += 1
             '''
         if (self.mapbase.x <= EXISTING_WAYPOINTS["1"][0]["x"]):
             twist.linear.x = 0.025
