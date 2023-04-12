@@ -6,6 +6,7 @@ from sensor_msgs.msg import LaserScan
 import geometry_msgs.msg
 from geometry_msgs.msg import Pose
 from std_msgs.msg import String
+from std_msgs.msg import Int16
 from std_msgs.msg import Bool
 import numpy as np
 import math
@@ -33,6 +34,7 @@ count = 0
 rotatechange = 0.1
 table = 0
 can = bool
+
 # quad_1 = range(0, 0.5 * pi)
 # quad_2 = range (0.5 * pi, pi)
 # quad_3 = range(pi, -0.5 * pi)
@@ -85,28 +87,22 @@ class Auto_Mover(Node):
         #     qos_profile_sensor_data)
         # self.occ_subscription  # prevent unused variable warning
         # self.occdata = np.array([])
+
         self.map2base_subscription = self.create_subscription(Pose,'/map2base',self.odom_callback,10)
         self.subscription = self.create_subscription(
             LaserScan,
             'scan',
             self.scan_callback,
             qos_profile_sensor_data)  
+        self.IRLeft_subscriber = self.create_subscription(Int16,'IRLeft',self.ir_callbackL,3)
+        self.IRRight_subscriber = self.create_subscription(Int16,'IRRight',self.ir_callbackR,3)
         
-
-
+    def ir_callbackL(self, msg):
+        self.irdata[0] = msg.data
+    def ir_callbackR (self,msg):
+        self.irdata[1] = msg.data
     def can_callback(self,msg):
-        global can
-        can = msg.data
-
-    def dock(self):
-        msg = Bool()
-        msg.data = True
-        self.dock_publisher.publish(msg)  
-        
-
-
-
-
+        self.can = msg.data
     def odom_callback(self, msg):
         # # print("callback")
         #For map2base
@@ -362,6 +358,56 @@ class Auto_Mover(Node):
     def run_combi(self,paths):
         for point in paths:
             self.travelling_point(point)
+
+    def dock(self):
+        twist = Twist()
+        print("in IR_follow")
+        follow = True
+        extreme = True
+        while (follow == True):
+            rclpy.spin_once(self)
+            if(irdata[0]==0 and irdata[1]==0): #Front
+                twist.linear.x = -0.02
+                twist.angular.z = 0.0
+                print(twist.linear.x)
+                time.sleep(1)
+                self.publisher_.publish(twist)
+                print("publishing")
+                if (extreme == True and irdata[0]!=0 and irdata[1]!=0): #extreme case where bot is perpendicular, run once
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                time.sleep(1)
+                self.publisher_.publish(twist)
+                while (irdata[0]!=0 and irdata[1]!=0):
+                    rclpy.spin_once(self)
+                    twist.linear.x = -0.02
+                    time.sleep(0.1)
+                    self.publisher_.publish(twist)
+                    twist.linear.x = 0.0
+                    twist.angular.z = 0.1
+                    time.sleep(0.1)
+                    self.publisher_.publish(twist)
+                    time.sleep(1)
+                    twist.angular.z = 0.0
+                    time.sleep(0.1)
+                    self.publisher_.publish(twist)
+                extreme = False
+            elif (irdata[0]==0 and irdata[1]!=0): #Right (Clockwise)
+                twist.linear.x = 0.0
+                twist.angular.z = 0.1
+                self.publisher_.publish(twist)
+                extreme = False
+            elif (irdata[0]!=0 and irdata[1]==0): #Left (Counter-Clockwise)
+                twist.linear.x = 0.0
+                twist.angular.z = -0.1
+                self.publisher_.publish(twist)
+                extreme = False
+            else: #Dont move
+                twist.linear.x = 0.0
+                twist.angular.z = 0.0
+                self.publisher_.publish(twist)
+                follow = False
+
     def path(self):
         print(can)
         if table == 0:
