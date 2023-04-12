@@ -164,6 +164,11 @@ class Auto_Mover(Node):
         # self.angle_go = math.radians(lr2i)
         # log the info
         # self.get_logger().info('Shortest distance at %i degrees' % lr2i)    
+    def stopbot(self):
+        twist = geometry_msgs.msg.Twist()
+        twist.linear.x = 0.0
+        twist.angular.z = 0.0
+        self.publisher_.publish(twist)
     def dock(self):
         
         twist = geometry_msgs.msg.Twist()
@@ -172,14 +177,14 @@ class Auto_Mover(Node):
         extreme = True
         while (follow == True):
             rclpy.spin_once(self)
-            if(self.self.irdata[0]==0 and self.self.irdata[1]==0): #Front
+            if(self.irdata[0]==0 and self.irdata[1]==0): #Front
                 twist.linear.x = -0.02
                 twist.angular.z = 0.0
                 print(twist.linear.x)
                 time.sleep(1)
                 self.publisher_.publish(twist)
                 print("publishing")
-                if (extreme == True and self.self.irdata[0]!=0 and self.irdata[1]!=0): #extreme case where bot is perpendicular, run once
+                if (extreme == True and self.irdata[0]!=0 and self.irdata[1]!=0): #extreme case where bot is perpendicular, run once
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
                     time.sleep(1)
@@ -360,25 +365,25 @@ class Auto_Mover(Node):
             self.travelling_point(point)
 
     def dock(self):
-        twist = Twist()
+        twist = geometry_msgs.msg.Twist()
         print("in IR_follow")
         follow = True
         extreme = True
         while (follow == True):
             rclpy.spin_once(self)
-            if(irdata[0]==0 and irdata[1]==0): #Front
+            if(self.irdata[0]==0 and self.irdata[1]==0): #Front
                 twist.linear.x = -0.02
                 twist.angular.z = 0.0
                 print(twist.linear.x)
                 time.sleep(1)
                 self.publisher_.publish(twist)
                 print("publishing")
-                if (extreme == True and irdata[0]!=0 and irdata[1]!=0): #extreme case where bot is perpendicular, run once
-                twist.linear.x = 0.0
-                twist.angular.z = 0.0
-                time.sleep(1)
-                self.publisher_.publish(twist)
-                while (irdata[0]!=0 and irdata[1]!=0):
+                if (extreme == True and self.irdata[0]!=0 and self.irdata[1]!=0): #extreme case where bot is perpendicular, run once
+                    twist.linear.x = 0.0
+                    twist.angular.z = 0.0
+                    time.sleep(1)
+                    self.publisher_.publish(twist)
+                while (self.irdata[0]!=0 and self.irdata[1]!=0):
                     rclpy.spin_once(self)
                     twist.linear.x = -0.02
                     time.sleep(0.1)
@@ -392,12 +397,12 @@ class Auto_Mover(Node):
                     time.sleep(0.1)
                     self.publisher_.publish(twist)
                 extreme = False
-            elif (irdata[0]==0 and irdata[1]!=0): #Right (Clockwise)
+            elif (self.irdata[0]==0 and self.irdata[1]!=0): #Right (Clockwise)
                 twist.linear.x = 0.0
                 twist.angular.z = 0.1
                 self.publisher_.publish(twist)
                 extreme = False
-            elif (irdata[0]!=0 and irdata[1]==0): #Left (Counter-Clockwise)
+            elif (self.irdata[0]!=0 and self.irdata[1]==0): #Left (Counter-Clockwise)
                 twist.linear.x = 0.0
                 twist.angular.z = -0.1
                 self.publisher_.publish(twist)
@@ -409,19 +414,19 @@ class Auto_Mover(Node):
                 follow = False
 
     def path(self):
-        print(can)
-        if table == 0:
-                print("FAILED TO SUBSCIBE TO USER")
-
-        rclpy.spin_once(self)
-        twist = geometry_msgs.msg.Twist()
-        
-        table 
-        print("table", table)
-        # print("table",Table)
-        # table = int(input("input table number: "))
-        
         try:
+            print(can)
+            if table == 0:
+                    print("FAILED TO SUBSCIBE TO USER")
+
+            rclpy.spin_once(self)
+            twist = geometry_msgs.msg.Twist()
+            
+            table 
+            print("table", table)
+            # print("table",Table)
+            # table = int(input("input table number: "))
+        
             if table == 1:
                 
                 while abs(int(self.orien*100)) >=2:
@@ -439,7 +444,7 @@ class Auto_Mover(Node):
                         print(math.degrees(self.orien))
                         twist.linear.x = 0.1
                         twist.angular.z = 0.0                 
-                                  
+                                    
                         self.publisher_.publish(twist)
 
                 if self.front <= 0.4:
@@ -482,13 +487,13 @@ class Auto_Mover(Node):
                         rclpy.spin_once(self)
                         # print(math.degrees(self.orien))
                         print(abs(int(self.orien*100)))
-                        twist.angular.z = 0.3
+                        twist.angular.z = 0.22
                         self.publisher_.publish(twist)
                 while self.front > 0.2:
                     rclpy.spin_once(self)
                     print("moving to table")
                     twist.linear.x = 0.1
-                    twist.angular.z = 0.0 
+                    twist.angular.z = 0.0  
                     self.publisher_.publish(twist)
                     
                     if self.front <= 0.2:
@@ -499,6 +504,7 @@ class Auto_Mover(Node):
             if table in  [4 , 5]:
                 new_path[0] = 7
             if table == 5:
+                new_path[-1] = 7
                 new_path[0] = 8
             print(new_path)
             # insert can value here
@@ -514,13 +520,13 @@ class Auto_Mover(Node):
                 self.run_combi(new_path)
                 
                 #put docking function here   
-                self.dock()          
-            
+                self.dock()  
+        except Exception as e:
+            print(e) 
         finally:
+            self.stopbot()
             # stop moving   
-            twist.linear.x = 0.0
-            twist.angular.z = 0.0
-            self.publisher_.publish(twist)
+            
 
 def table_num(client, userdata, message):
     print("received message: " ,str(message.payload.decode("utf-8")))
