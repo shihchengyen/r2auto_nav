@@ -300,21 +300,21 @@ class Auto_Mover(Node):
         follow = True
         extreme = True
         while (follow == True):
-            print(GPIO.input(L))
-            print(GPIO.input(R))
-            if(GPIO.input(L)==0 and GPIO.input(R)==0): #Front
+            rclpy.spin_once(self)
+            if(irdata[0]==0 and irdata[1]==0): #Front
                 twist.linear.x = -0.02
                 twist.angular.z = 0.0
                 print(twist.linear.x)
                 time.sleep(1)
                 self.publisher_.publish(twist)
                 print("publishing")
-                if (extreme == True and GPIO.input(L)!=0 and GPIO.input(R)!=0): #extreme case where bot is perpendicular, run once
+                if (extreme == True and irdata[0]!=0 and irdata[1]!=0): #extreme case where bot is perpendicular, run once
                 twist.linear.x = 0.0
                 twist.angular.z = 0.0
                 time.sleep(1)
                 self.publisher_.publish(twist)
-                while (GPIO.input(L)!=0 and GPIO.input(R)!=0):
+                while (irdata[0]!=0 and irdata[1]!=0):
+                    rclpy.spin_once(self)
                     twist.linear.x = -0.02
                     time.sleep(0.1)
                     self.publisher_.publish(twist)
@@ -327,12 +327,12 @@ class Auto_Mover(Node):
                     time.sleep(0.1)
                     self.publisher_.publish(twist)
                 extreme = False
-            elif (GPIO.input(L)==0 and GPIO.input(R)!=0): #Right (Clockwise)
+            elif (irdata[0]==0 and irdata[1]!=0): #Right (Clockwise)
                 twist.linear.x = 0.0
                 twist.angular.z = 0.1
                 self.publisher_.publish(twist)
                 extreme = False
-            elif (GPIO.input(L)!=0 and GPIO.input(R)==0): #Left (Counter-Clockwise)
+            elif (irdata[0]!=0 and irdata[1]==0): #Left (Counter-Clockwise)
                 twist.linear.x = 0.0
                 twist.angular.z = -0.1
                 self.publisher_.publish(twist)
