@@ -137,6 +137,7 @@ class Auto_Mover(Node):
         other_range = (laser_range[0:30])
         taken_range = np.append(other_range , positive_range)
         taken_range[taken_range==0] = np.nan
+        laser_range[laser_range==0] = np.nan
         # print(laser_range)
         # taken_range = list(filter(lambda x: x == 0.0,taken_range))
         # find index with minimum value
@@ -149,25 +150,11 @@ class Auto_Mover(Node):
             lr2i = np.nanargmin(taken_range)
             self.front = taken_range[lr2i]
             # print("updated dist", self.front)
-        if check_range.size != 0:
+        if laser_range.size != 0:
             # print(taken_range)
             # use nanargmax as there are nan's in laser_range added to replace 0's
-            # self.dir = np.nanargmin(check_range)
-            self.dir = 10000000
-            dist = 1000000
-            for i in range(len(check_range)):
-                print(i)
-                print(check_range[i])
-                if check_range[i]!= 0.0:
-                    if check_range[i] < dist :
-                        dist = check_range[i]
-                        self.dir = i
-            print("smallest")
-            print(i)
-            print(check_range[i])
-            if i > 9:
-                self.dir = self.dir * -1
-            print("final dir",self.dir)
+            self.dir = np.nanargmin(laser_range)
+            self.check = laser_range[self.dir]
             # self.get_logger().info('Picked direction: %d %f m' % (self.dir,taken_range[self.dir]))
             return
         else:
@@ -184,7 +171,8 @@ class Auto_Mover(Node):
         twist.linear.x = 0.0
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
-    def rotatebot (self,theta):
+    def rotatebot (self,angle):
+        theta = angle
         twist = geometry_msgs.msg.Twist()
         degree_to_turn = theta - int(100*self.orien )
         while abs(degree_to_turn) > angle_error:
@@ -259,55 +247,25 @@ class Auto_Mover(Node):
             self.publisher_.publish(twist)
             rclpy.spin_once(self)
     def pick_direction(self):
-        angle = self.dir
-        print('angle',angle)
-        print('float angle' ,float(angle))
-    # def pick_direction(self):
-        # try:
-        #     rclpy.spin_once(self)
-            
-        #     twist = geometry_msgs.msg.Twist()
-        #     # self.get_logger().info('In pick_direction')
-        #     print("self.dir",self.dir)
-        #     # angle = int(100*math.radians(self.dir))
-        #     angle = self.dir
-        #     degree_to_turn = angle - int(100*self.orien )
-        #     print("degree to turn",(degree_to_turn))
-        #     print("dtt ", angle)
-        #     print("orien",math.degrees(self.orien))
-        #     print("front",self.front)
-        #     while True:
-        #         print("in loop")
-        #         degree_to_turn = angle - math.degrees(self.orien)
-        #         # self.rotatebot(degree_to_turn)
-        #         rclpy.spin_once(self)
-        #         print("degree to turn",(degree_to_turn))
-        #         print("dtt ", angle)
-        #         print("orien",math.degrees(self.orien))
-        #         self.rotatebot(math.radians(angle))
-        #         # if abs(degree_to_turn) > angle_error:
-        #         #     print("in angle checker")
-        #         #     degree_to_turn = math.degrees(angle - self.orien )
-        #         #     print("degree to turn",(degree_to_turn))
-        #         #     print("dtt ", angle)
-        #         #     print("orien",math.degrees(self.orien))
-        #         #     # print(self.dir)
-        #         #     twist.linear.x = 0.0
-        #         #     twist.angular.z = 0.5
-                
-               
-        #         if  self.front > 0.25:      
-        #             print("heading to table 6")
-        #             print(self.front)
-        #             twist.linear.x = 0.0
-        #             twist.angular.z = 0.0                 
-                                    
-        #         self.publisher_.publish(twist)
-        # finally:
-        #     twist.linear.x = 0.0
-        #     twist.angular.z = 0.0                 
-                                    
-        #     self.publisher_.publish(twist)
+        twist = geometry_msgs.msg.Twist()
+        rclpy.spin_once(self)
+        degree_to_turn = (int(100*math.radians(self.dir))) - int(100*self.orien )
+        while True:
+            rclpy.spin_once(self)
+            if self.check >= 0.5:
+                print('check',self.check)
+                print('self',self.dir)
+                twist.linear.x = 0.05
+                twist.angular.z = 0.0
+            elif self.check <= 0.48:
+                self.stopbot()
+            elif abs(degree_to_turn) > angle_error:
+                degree_to_turn = (int(100*math.radians(self.dir))) - int(100*self.orien )
+                print('check',self.check)
+                print('self',self.dir)
+                # self.rotatebot(int(100*math.radians(self.dir)))
+            self.publisher_.publish(twist)
+
 
 
 
