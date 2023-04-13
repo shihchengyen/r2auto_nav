@@ -247,22 +247,35 @@ class Auto_Mover(Node):
             self.publisher_.publish(twist)
             rclpy.spin_once(self)
     def pick_direction(self):
+        print("excuted pick_direction")
         twist = geometry_msgs.msg.Twist()
-        rclpy.spin_once(self)
         degree_to_turn = (int(100*math.radians(self.dir))) - int(100*self.orien )
+        # rclpy.spin_once(self)
         while True:
+            print("in while loop in pick direction")
             rclpy.spin_once(self)
+            print(self.check)
+            print(degree_to_turn)
             if self.check >= 0.5:
                 print('check',self.check)
                 print('self',self.dir)
+                print(degree_to_turn)
                 twist.linear.x = 0.05
                 twist.angular.z = 0.0
-            elif self.check <= 0.48:
-                self.stopbot()
+            # elif self.check <= 0.48:
+            #     self.stopbot()
             elif abs(degree_to_turn) > angle_error:
                 degree_to_turn = (int(100*math.radians(self.dir))) - int(100*self.orien )
+                twist.linear.x = 0.0
+                twist.angular.z = 0.3
                 print('check',self.check)
                 print('self',self.dir)
+            elif self.front >= 0.3:
+                twist.linear.x = 0.05
+                twist.angular.z = 0.0
+            else:
+                self.stopbot()
+                break
                 # self.rotatebot(int(100*math.radians(self.dir)))
             self.publisher_.publish(twist)
 
