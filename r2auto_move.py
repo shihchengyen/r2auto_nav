@@ -28,7 +28,7 @@ print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
 angle_error = 2
-paths = {1:[0,1],2:[0,1,3],3:[0,1,2],4:[0,1,3,7],5:[0,4,8],6:[0,1,3,7,5,6]}
+paths = {1:[0,1],2:[0,1,3],3:[0,1,2],4:[0,1,3,7],5:[0,9,4,8],6:[0,1,3,7,5,6]}
 # print("in in in ")
 count = 0
 rotatechange = 0.1
@@ -130,7 +130,7 @@ class Auto_Mover(Node):
         positive_range = laser_range[-30:-1]
         p = laser_range[-10:-1]
         n = laser_range[0:10]
-        check_range = np.append(n,p)
+        check_range = np.append(p,n)
 
         # print(laser_range[0])
         # taken_range = np.add(taken_range, laser_range[0:16])
@@ -142,21 +142,36 @@ class Auto_Mover(Node):
         # find index with minimum value
         # self.front = laser_range[0]
         # print("break here:2")
-        if np.isnan(check_range).all() == True:
+        if np.isnan(taken_range).all() == True:
             self.front = 3.0
             # print("all NAN")
         else:
-            lr2i = np.nanargmin(check_range)
-            self.front = check_range[lr2i]
+            lr2i = np.nanargmin(taken_range)
+            self.front = taken_range[lr2i]
             # print("updated dist", self.front)
-        if taken_range.size != 0:
+        if check_range.size != 0:
             # print(taken_range)
             # use nanargmax as there are nan's in laser_range added to replace 0's
-            self.dir = np.nanargmin(taken_range)
+            # self.dir = np.nanargmin(check_range)
+            self.dir = 10000000
+            dist = 1000000
+            for i in range(len(check_range)):
+                print(i)
+                print(check_range[i])
+                if check_range[i]!= 0.0:
+                    if check_range[i] < dist :
+                        dist = check_range[i]
+                        self.dir = i
+            print("smallest")
+            print(i)
+            print(check_range[i])
+            if i > 9:
+                self.dir = self.dir * -1
+            print("final dir",self.dir)
             # self.get_logger().info('Picked direction: %d %f m' % (self.dir,taken_range[self.dir]))
             return
         else:
-            self.dir = 0
+            # self.dir = 0
             self.get_logger().info('No data!')
             # print("laser range",taken_range)
         
@@ -169,7 +184,7 @@ class Auto_Mover(Node):
         twist.linear.x = 0.0
         twist.angular.z = 0.0
         self.publisher_.publish(twist)
-    def present_can (self,theta):
+    def rotatebot (self,theta):
         twist = geometry_msgs.msg.Twist()
         degree_to_turn = theta - int(100*self.orien )
         while abs(degree_to_turn) > angle_error:
@@ -184,7 +199,7 @@ class Auto_Mover(Node):
                 # self.get_logger().info("My orientation is " + str(math.degrees(self.orien)))
                 print(math.degrees(self.orien))               
                 self.publisher_.publish(twist)
-        self.stopbot
+        self.stopbot()
         
     def dock(self):
         
@@ -244,44 +259,55 @@ class Auto_Mover(Node):
             self.publisher_.publish(twist)
             rclpy.spin_once(self)
     def pick_direction(self):
-        try:
-            rclpy.spin_once(self)
+        angle = self.dir
+        print('angle',angle)
+        print('float angle' ,float(angle))
+    # def pick_direction(self):
+        # try:
+        #     rclpy.spin_once(self)
             
-            twist = geometry_msgs.msg.Twist()
-            # self.get_logger().info('In pick_direction')
-            print("self.dir",self.dir)
-            angle = self.dir
-            degree_to_turn = angle - math.degrees(self.orien ) 
-            print("degree to turn",(degree_to_turn))
-            print("dtt ", angle)
-            print("orien",math.degrees(self.orien))
-            print("front",self.front)
-            while self.front > 0.25:
-                print("in loop")
-                # self.rotatebot(degree_to_turn)
-                rclpy.spin_once(self)
-                if abs(degree_to_turn) > angle_error:
-                    degree_to_turn = angle - math.degrees(self.orien ) 
-                    print("degree to turn",(degree_to_turn))
-                    print("dtt ", angle)
-                    print("orien",math.degrees(self.orien))
-                    # print(self.dir)
-                    twist.linear.x = 0.0
-                    twist.angular.z = 0.5
+        #     twist = geometry_msgs.msg.Twist()
+        #     # self.get_logger().info('In pick_direction')
+        #     print("self.dir",self.dir)
+        #     # angle = int(100*math.radians(self.dir))
+        #     angle = self.dir
+        #     degree_to_turn = angle - int(100*self.orien )
+        #     print("degree to turn",(degree_to_turn))
+        #     print("dtt ", angle)
+        #     print("orien",math.degrees(self.orien))
+        #     print("front",self.front)
+        #     while True:
+        #         print("in loop")
+        #         degree_to_turn = angle - math.degrees(self.orien)
+        #         # self.rotatebot(degree_to_turn)
+        #         rclpy.spin_once(self)
+        #         print("degree to turn",(degree_to_turn))
+        #         print("dtt ", angle)
+        #         print("orien",math.degrees(self.orien))
+        #         self.rotatebot(math.radians(angle))
+        #         # if abs(degree_to_turn) > angle_error:
+        #         #     print("in angle checker")
+        #         #     degree_to_turn = math.degrees(angle - self.orien )
+        #         #     print("degree to turn",(degree_to_turn))
+        #         #     print("dtt ", angle)
+        #         #     print("orien",math.degrees(self.orien))
+        #         #     # print(self.dir)
+        #         #     twist.linear.x = 0.0
+        #         #     twist.angular.z = 0.5
                 
                
-                else:      
-                    print("heading to table 6")
-                    print(self.front)
-                    twist.linear.x = 0.1
-                    twist.angular.z = 0.0                 
+        #         if  self.front > 0.25:      
+        #             print("heading to table 6")
+        #             print(self.front)
+        #             twist.linear.x = 0.0
+        #             twist.angular.z = 0.0                 
                                     
-                self.publisher_.publish(twist)
-        finally:
-            twist.linear.x = 0.0
-            twist.angular.z = 0.0                 
+        #         self.publisher_.publish(twist)
+        # finally:
+        #     twist.linear.x = 0.0
+        #     twist.angular.z = 0.0                 
                                     
-            self.publisher_.publish(twist)
+        #     self.publisher_.publish(twist)
 
 
 
@@ -293,11 +319,11 @@ class Auto_Mover(Node):
         
         # rclpy.init_node("speed_controller")
         # r = rclpy.Rate(4)
-        if point == 8:
+        if point == 10:
             print("point",point)
             self.goal_x = waypoints[2][0][0]
             self.goal_y = waypoints[2][0][1]
-        elif point == 9:
+        elif point == 11:
             self.goal_x = waypoints[4][0][0]
             self.goal_y = waypoints[4][0][1]
         else:
@@ -320,7 +346,9 @@ class Auto_Mover(Node):
                     current_angle =  math.degrees(self.orien)
                     # print("x",self.x, "inc",inc_x)
                     inc_y = self.goal_y - self.y
+                    
                     if  abs(degree_to_turn) > angle_error:
+                        # self.rotatebot(theta)
                         degree_to_turn = math.degrees(theta - self.orien )
                         # print("angle finding")
                         # self.rotatebot(degree_to_turn)
@@ -331,12 +359,15 @@ class Auto_Mover(Node):
                         print("theta", int(100*(theta)))
                         print(self.sign)
                         print(point)
-                        # print("current x", self.x)
-                        # print("goal", self.goal_x)
-                        # print("current y", self.y)
-                        # print("goal", self.goal_y)
-                    elif point == 3 or point == 9 or point == 4:
+                        print("current x", self.x)
+                        print("goal", self.goal_x)
+                        print("current y", self.y)
+                        print("goal", self.goal_y)
+                    if point == 3  or point == 4:
                         print("for point 3 and 4, but point is:",point)
+                        if  (abs(int(abs(self.goal_y)*100)-int(abs(self.y)*100 ))) >=10 :
+                            twist.linear.x = 0.05
+                            twist.angular.z = 0.0  
                         if  (abs(int(abs(self.goal_y)*100)-int(abs(self.y)*100 ))) >=2 :
 
                             twist.linear.x = 0.1
@@ -354,9 +385,12 @@ class Auto_Mover(Node):
                         twist.angular.z = 0.0 
                         self.publisher_.publish(twist)
                         break                    
-                    elif (abs(int(abs(self.goal_x)*100 -int(abs(self.x)*100 )))) >= 2:
-                        # and abs((int(abs(self.goal_y)*100-2)-int(abs(self.y)*100))<= 3)
+                    elif (abs(int(abs(self.goal_x)*100 -int(abs(self.x)*100 )))) >= 10:
                         twist.linear.x = 0.1
+                        twist.angular.z = 0.0  
+                    elif (abs(int(abs(self.goal_x)*100 -int(abs(self.x)*100 ))))>=2:
+                        # and abs((int(abs(self.goal_y)*100-2)-int(abs(self.y)*100))<= 3)
+                        twist.linear.x = 0.05
                         twist.angular.z = 0.0  
                         print("moving")
                         print("current x", self.x)
@@ -470,7 +504,7 @@ class Auto_Mover(Node):
                 #     self.run_combi([0])
             if table == 6:
                 rclpy.spin_once(self)
-                self.run_combi(paths[table])
+                # self.run_combi(paths[table])
                 # while abs(int(self.orien*100)) - 110 <=angle_error:
                 #         print("Turning to table 6")
                 #         rclpy.spin_once(self)
@@ -514,30 +548,30 @@ class Auto_Mover(Node):
                 #     if self.front <= 0.25:
                 #         print("stopping at table")
                 #         twist.linear.x =0.0
-            if table in [1,2]:
-                self.present_can(310)
+            if table in [1,2,5]:
+                self.rotatebot(310)
             else:
-                self.present_can(0)
+                self.rotatebot(0)
             new_path = paths[table][::-1]
             # if table is 4:
             #     new_path[0] = 7
             if table == 5:
-                new_path[-1] = 7
-                new_path[0] = 8
+                # new_path[-1] = 10
+                new_path[0] = 11
             print(new_path)
             # insert can value here
             if can == False:
                 
                 print("returning")
                 self.run_combi(new_path)
-                self.present_can(-50)
+                self.rotatebot(-50)
                 #put docking function here   
                 self.dock()  
             else:
                 time.sleep(10)
                 print("returning but no can reading")
                 self.run_combi(new_path)
-                self.present_can(-50)
+                self.rotatebot(-50)
                 
                 #put docking function here   
                 self.dock()  
@@ -572,13 +606,14 @@ def main(args = None):
         
             # to get ip address of the laptop
         #connect to esp32
+        client = mqtt.Client("Turtlebot")
+        client.on_connect = on_connect
+        client.on_message = table_num
+        client.username_pw_set("roger", "password")
+        client.connect(MQTT_BROKER, 1883)
+        client.loop_start()
         while True:
-            client = mqtt.Client("Turtlebot")
-            client.on_connect = on_connect
-            client.on_message = table_num
-            client.username_pw_set("roger", "password")
-            client.connect(MQTT_BROKER, 1883)
-            client.loop_start()
+            
             client.subscribe("TableNo")
             rclpy.spin_once(auto_move)
             # auto_move.dock()
