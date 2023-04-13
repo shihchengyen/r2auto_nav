@@ -21,13 +21,13 @@ MQTT_BROKER = '192.168.1.102'
 # from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 # import RPI.GPIO as GPIO
 import paho.mqtt.client as mqtt
-with open("waypoints_s.pickle","rb") as handle:
+with open("waypoints_sim.pickle","rb") as handle:
     waypoints = pickle.load(handle)
 
 print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
-angle_error = 2
+angle_error = 4
 paths = {1:[0,1],2:[0,1,3],3:[0,1,2],4:[0,1,3,7],5:[0,9,4,8],6:[0,1,3,7,5,6]}
 # print("in in in ")
 count = 0
@@ -198,10 +198,9 @@ class Auto_Mover(Node):
         while (follow == True):
             rclpy.spin_once(self)
             if(self.irdata[0]==0 and self.irdata[1]==0): #Front
-                twist.linear.x = -0.02
+                twist.linear.x = -0.04
                 twist.angular.z = 0.0
                 print(twist.linear.x)
-                time.sleep(1)
                 self.publisher_.publish(twist)
                 print("publishing")
                 if (extreme == True and self.irdata[0]!=0 and self.irdata[1]!=0): #extreme case where bot is perpendicular, run once
@@ -211,11 +210,11 @@ class Auto_Mover(Node):
                     self.publisher_.publish(twist)
                 while (self.irdata[0]!=0 and self.irdata[1]!=0):
                     rclpy.spin_once(self)
-                    twist.linear.x = -0.02
+                    twist.linear.x = -0.04
                     time.sleep(0.1)
                     self.publisher_.publish(twist)
                     twist.linear.x = 0.0
-                    twist.angular.z = 0.1
+                    twist.angular.z = 0.05
                     time.sleep(0.1)
                     self.publisher_.publish(twist)
                     time.sleep(1)
@@ -225,12 +224,12 @@ class Auto_Mover(Node):
                 extreme = False
             elif (self.irdata[0]==0 and self.irdata[1]!=0): #Right (Clockwise)
                 twist.linear.x = 0.0
-                twist.angular.z = 0.1
+                twist.angular.z = 0.05
                 self.publisher_.publish(twist)
                 extreme = False
             elif (self.irdata[0]!=0 and self.irdata[1]==0): #Left (Counter-Clockwise)
                 twist.linear.x = 0.0
-                twist.angular.z = -0.1
+                twist.angular.z = -0.05
                 self.publisher_.publish(twist)
                 extreme = False
             else: #Dont move
@@ -317,24 +316,26 @@ class Auto_Mover(Node):
                     current_angle =  math.degrees(self.orien)
                     # print("x",self.x, "inc",inc_x)
                     inc_y = self.goal_y - self.y
-                    
+                    degree_to_turn = (int(100*math.radians(theta))) - int(100*self.orien )
+                    # if abs(degree_to_turn) - 2 > angle_error:
+                    #     twist.linear.x = 0.0
+                    #     twist.angular.z = 0.0
+                    #     self.publisher_.publish(twist)
                     if  abs(degree_to_turn) > angle_error:
-                        # self.rotatebot(theta)
                         degree_to_turn = math.degrees(theta - self.orien )
                         # print("angle finding")
                         # self.rotatebot(degree_to_turn)
                         twist.linear.x = 0.0
-                        twist.angular.z = 0.5 * self.sign
+                        twist.angular.z = 0.5 
                         print("degree to turn", degree_to_turn)
-                        print("current angle", int(100*(self.orien)))
-                        print("theta", int(100*(theta)))
+                        print("current angle", math.degrees(self.orien))
+                        print("theta", math.degrees(theta))
+                        # print(sign)
                         print(self.sign)
                         print(point)
-                        print("current x", self.x)
-                        print("goal", self.goal_x)
-                        print("current y", self.y)
-                        print("goal", self.goal_y)
-                    if point == 3  or point == 4:
+                    
+                    
+                    elif point == 3  or point == 4:
                         print("for point 3 and 4, but point is:",point)
                         if  (abs(int(abs(self.goal_y)*100)-int(abs(self.y)*100 ))) >=10 :
                             twist.linear.x = 0.05
@@ -537,7 +538,7 @@ class Auto_Mover(Node):
                 self.run_combi(new_path)
                 self.rotatebot(-50)
                 #put docking function here   
-                # self.dock()  
+                self.dock()  
             else:
                 time.sleep(10)
                 print("returning but no can reading")
@@ -545,7 +546,7 @@ class Auto_Mover(Node):
                 self.rotatebot(-50)
                 
                 #put docking function here   
-                # self.dock()  
+                self.dock()  
         except KeyboardInterrupt:
             self.get_logger().info('I stopped')
             self.stopbot()
