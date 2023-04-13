@@ -21,7 +21,7 @@ MQTT_BROKER = '192.168.1.102'
 # from tf2_ros import LookupException, ConnectivityException, ExtrapolationException
 # import RPI.GPIO as GPIO
 import paho.mqtt.client as mqtt
-with open("waypoints_sim.pickle","rb") as handle:
+with open("waypoints_s.pickle","rb") as handle:
     waypoints = pickle.load(handle)
 
 print(waypoints)
@@ -361,7 +361,7 @@ class Auto_Mover(Node):
                         twist.angular.z = 0.0  
                     elif (abs(int(abs(self.goal_x)*100 -int(abs(self.x)*100 ))))>=2:
                         # and abs((int(abs(self.goal_y)*100-2)-int(abs(self.y)*100))<= 3)
-                        twist.linear.x = 0.05
+                        twist.linear.x = 0.1
                         twist.angular.z = 0.0  
                         print("moving")
                         print("current x", self.x)
@@ -475,7 +475,7 @@ class Auto_Mover(Node):
                 #     self.run_combi([0])
             if table == 6:
                 rclpy.spin_once(self)
-                # self.run_combi(paths[table])
+                self.run_combi(paths[table])
                 # while abs(int(self.orien*100)) - 110 <=angle_error:
                 #         print("Turning to table 6")
                 #         rclpy.spin_once(self)
@@ -537,7 +537,7 @@ class Auto_Mover(Node):
                 self.run_combi(new_path)
                 self.rotatebot(-50)
                 #put docking function here   
-                self.dock()  
+                # self.dock()  
             else:
                 time.sleep(10)
                 print("returning but no can reading")
@@ -545,7 +545,7 @@ class Auto_Mover(Node):
                 self.rotatebot(-50)
                 
                 #put docking function here   
-                self.dock()  
+                # self.dock()  
         except KeyboardInterrupt:
             self.get_logger().info('I stopped')
             self.stopbot()
