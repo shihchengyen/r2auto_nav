@@ -40,6 +40,9 @@ mapfile = 'map.txt'
 import socket
 import nmap
 
+def check(x,y):
+    return abs(x)<5 and abs(y)<5
+
 
 
 def yaw2angle(angle):
@@ -203,13 +206,15 @@ class PosNav(Node):
         
 
         #checkpoints
-        Table1 = [(0.79,0),(1,0),(1.21,0),(1.5,0)]
-        Table2 = [(0.79,0),(1,0),(1.25,0),(1.4,-0.3),(1.4,-0.5),(1.4,-0.8),(1.4,-1)]
-        Table3 = [(0.5,0),(0.5,-0.3),(0.5,-0.5),(0.5,-1)]
-        Table4 = [(0.5,0),(0.5,-0.4),(0.5,-0.8),(0.5,-1.2),(0.5,-1.6)]
-        Table5 = [(0.5,0),(0.5,-0.5),(0.5,-1),(0.15,-1),(0.15,-1.5),(0.15,-2),(0.15,-2.5),(0.5,-2.5),(1,-2.5),(1.5,-2.5)]
-        Table6 = [(0.5,0),(1,0),(1.5,0),(1.5,-0.5),(1.5,-1),(1.5,-1.8),(2,-1.8),(2.5,-1.8),(2.5,-1.3)]
+        Table1 = [(0.79,0),(1,0),(1.15,0),(1.29,0)]
+        Table2 = [(0.79,0),(1,0),(1.25,0),(1.3,-0.3),(1.35,-0.9)]
+        Table3 = [(0.3,-0.3),(0.4,-0.5),(0.4,-0.8)]
+        Table4 = [(0.3,-0.4),(0.35,-0.8),(0.35,-1.2),(0.38,-1.5)]
+        Table5 = [(0.3,-0.5),(0.3,-1),(-0.1,-1),(-0.2,-1.5),(-0.2,-2),(-0.2,-2.55),(0.5,-2.55),(1,-2.55),(1.10,-2.55),(1.18,-2.55)]
+        Table6 = [(0.8,0),(1.1,0),(1.1,-0.5),(1.2,-1),(1.2,-1.84),(1.9,-1.84),(2.3,-1.84),(2.7,-1.84),(2.7,-1.2),(2.4,-0.3)]
         self.Tables = [Table1,Table2,Table3,Table4,Table5,Table6]
+
+        #table 6 corners,(3.2,-1),(2.2,0),(2.2,-1),(3.2,0)
 
     def forwardcal(self):
         rclpy.spin_once(self)
@@ -305,7 +310,7 @@ class PosNav(Node):
                 rclpy.spin_once(self)
                 print(counter)
                 time.sleep(0.5)
-                if counter >= 5:
+                if counter >= 10:
                     return 1
             else:
                 return 0
@@ -552,8 +557,18 @@ class PosNav(Node):
         overshot = 0
         while not stop_flag:
             
+            rclpy.spin_once(self)
+            checked = check(to_x,to_y)
+            next = angle_between([self.mapbase.x,self.mapbase.y],[to_x,to_y])
+            new_angle = (next-yaw2angle(self.mbyaw)+360)%360
+            print("new angle:",new_angle,"next angle:",next,"mbyaw:",yaw2angle(self.mbyaw))
+            if (180<new_angle <330 and checked):
+                self.rotatebotslow(-5)
+            elif (180>new_angle > 30 and checked):
+                new_angle = (next-yaw2angle(self.mbyaw)+360)%360
+                self.rotatebotslow(5)
+            self.robotforward()
             time.sleep(0.1)
-
             rclpy.spin_once(self)
 
             dist = math.sqrt((self.mapbase.x-to_x)**2 + (self.mapbase.y-to_y)**2)
@@ -563,10 +578,11 @@ class PosNav(Node):
             if dist < stop_distance:
                 stop_flag = 1
                 print("yes")
-            elif ((dist - mindist) > 0.02 or dist>1):
+            elif ((dist - mindist) > 0.02 ):
                 print("Overshot")
                 stop_flag = 1
                 overshot = 1
+
         self.stopbot()
         rclpy.spin_once(self)
         next = angle_between(temp,[self.mapbase.x,self.mapbase.y])
@@ -578,8 +594,70 @@ class PosNav(Node):
     def setstartyaw(self):
         rclpy.spin_once(self)
         self.startyaw = self.mbyaw
+        time.sleep(1)
+        rclpy.spin_once(self)
+        self.startyaw2 = self.mbyaw
+        self.startyaw = (self.startyaw+self.startyaw2)/2
 
-    
+    def move_coords_back_normal(self, to_x, to_y):
+        mindist = 100
+        rclpy.spin_once(self)
+        while (abs(self.mapbase.x)>20 or abs(self.mapbase.y)>20):
+            rclpy.spin_once(self)
+        temp = [self.mapbase.x,self.mapbase.y]
+        next = angle_between([to_x,to_y],temp)
+        print("next angle:",next)
+        new_angle = (next-yaw2angle(self.mbyaw)+360)%360
+        print("desired rotation: ",end="")
+        print(new_angle)
+        self.rotatebot(new_angle)
+        stop_flag = 0
+        print("found")
+        self.park()
+        overshot = 0
+        dist = math.sqrt((self.mapbase.x-to_x)**2 + (self.mapbase.y-to_y)**2)
+        while not stop_flag:
+
+            rclpy.spin_once(self)
+            checked = check(to_x,to_y)
+            next = angle_between([to_x,to_y],[self.mapbase.x,self.mapbase.y])
+            new_angle = (next-yaw2angle(self.mbyaw)+360)%360
+            print("new angle:",new_angle,"next angle:",next,"mbyaw:",yaw2angle(self.mbyaw))
+            if (180<new_angle <350 and checked):
+                self.rotatebotslow(-1)
+            elif (180>new_angle > 10 and checked):
+                new_angle = (next-yaw2angle(self.mbyaw)+360)%360
+                self.rotatebotslow(1)
+            self.park()
+            time.sleep(0.3)
+            rclpy.spin_once(self)
+
+            dist = math.sqrt((self.mapbase.x-to_x)**2 + (self.mapbase.y-to_y)**2)
+            print(dist,self.mapbase.x,self.mapbase.y)
+            if dist < mindist:
+                mindist = dist
+            if dist < 0.05:
+                stop_flag = 1
+                print("yes")
+            elif (((dist - mindist) > 0.01 or self.mapbase.x<0) and dist<1) :
+                print("Overshot")
+                overshot += 1
+                time.sleep(0.2)
+                rclpy.spin_once(self)
+                if overshot>=5:
+                    stop_flag = 1
+
+        self.stopbot()
+        rclpy.spin_once(self)
+        next = angle_between(temp,[self.mapbase.x,self.mapbase.y])
+        self.og = next
+        if (overshot>=5):
+            print("adjusting")
+            self.move_coords(temp[0], temp[1])
+            self.move_coords_back_normal(to_x, to_y)
+        print("done")
+
+
     def move_coords_back(self, to_x, to_y):
         mindist = 100
         rclpy.spin_once(self)
@@ -591,14 +669,27 @@ class PosNav(Node):
         new_angle = (next-yaw2angle(self.mbyaw)+360)%360
         print("desired rotation: ",end="")
         print(new_angle)
-        self.rotatebotslow(new_angle)
+        self.rotatebot(new_angle)
         stop_flag = 0
         print("found")
         self.park()
         overshot = 0
+        dist = math.sqrt((self.mapbase.x-to_x)**2 + (self.mapbase.y-to_y)**2)
         while not stop_flag:
-            time.sleep(0.1)
             rclpy.spin_once(self)
+            checked = check(to_x,to_y)
+            next = angle_between([to_x,to_y],[self.mapbase.x,self.mapbase.y])
+            new_angle = (next-yaw2angle(self.mbyaw)+360)%360
+            print("new angle:",new_angle,"next angle:",next,"mbyaw:",yaw2angle(self.mbyaw))
+            if (180<new_angle <350 and checked):
+                self.rotatebotslow(-1)
+            elif (180>new_angle > 10 and checked):
+                new_angle = (next-yaw2angle(self.mbyaw)+360)%360
+                self.rotatebotslow(1)
+            self.park()
+            time.sleep(0.3)
+            rclpy.spin_once(self)
+            prevdist = dist
             dist = math.sqrt((self.mapbase.x-to_x)**2 + (self.mapbase.y-to_y)**2)
             print(dist,self.mapbase.x,self.mapbase.y)
             if dist < mindist:
@@ -606,17 +697,21 @@ class PosNav(Node):
             if dist < 0.03:
                 stop_flag = 1
                 print("yes")
-            elif ((dist - mindist) > 0.02 or dist>1):
+            elif (((dist - mindist) > 0.01 or self.mapbase.x<0) and dist<1) :
                 print("Overshot")
-                stop_flag = 1
                 overshot += 1
+                time.sleep(0.2)
+                rclpy.spin_once(self)
+                if overshot>=5:
+                    stop_flag = 1
+
         self.stopbot()
         rclpy.spin_once(self)
         next = angle_between(temp,[self.mapbase.x,self.mapbase.y])
         self.og = next
-        if (overshot>=3):
+        if (overshot>=5):
             print("adjusting")
-            self.move_coords(temp[0], temp[1])
+            self.move_coords(temp[0]+0.1, temp[1])
             self.move_coords_back(to_x, to_y)
         print("done")
 
@@ -636,7 +731,7 @@ class PosNav(Node):
     def pick_table(self, table):
 
         self.robotforward()
-        time.sleep(2)
+        time.sleep(1)
         self.stopbot()
         rclpy.spin_once(self)
 
@@ -645,7 +740,11 @@ class PosNav(Node):
         while next != coords[-1]:
             self.move_coords(next[0],next[1])
             next = coords[coords.index(next)+1]
-        self.move_coords(next[0],next[1])
+        self.move_coords_back_normal(next[0],next[1])
+        print("adjusted destinatiom")
+        nextangle = angle_between([self.mapbase.x,self.mapbase.y],coords[-2])
+        self.rotatebot((nextangle-yaw2angle(self.mbyaw)+360)%360)
+        
 
         #if table==6:
         #    self.find_table_6()
@@ -658,8 +757,8 @@ class PosNav(Node):
         while not self.ultrawait():
             time.sleep(0.1)
 
-        self.robotbackwards()
-        time.sleep(2)
+        self.robotforward()
+        time.sleep(1)
         self.stopbot()
 
         next = coords[-2]
@@ -667,6 +766,7 @@ class PosNav(Node):
             self.move_coords(next[0],next[1])
             next = coords[coords.index(next)-1]
         self.backup()
+
         
 
 
@@ -827,9 +927,11 @@ class PosNav(Node):
                 '''
         
         self.move_coords_back(0.3,0)
+        self.move_coords_back(0.2,0)
+        self.move_coords_back(0.1,0)
         self.move_coords_back(0,0)
 
-        self.rotatebot((yaw2angle(self.startyaw) - yaw2angle(self.mbyaw)+360)%360)
+        self.rotatebotslow((yaw2angle(self.startyaw) - yaw2angle(self.mbyaw)+360)%360)
 
         print("done parking")
         rclpy.spin_once(self)
@@ -918,7 +1020,9 @@ def main(args=None):
     auto_nav.setstartyaw()
     #auto_nav.get_init_pose()
     can_status = 0
+    #auto_nav.backup()
     
+    auto_nav.backup()
     table_num = 0
     while (True):
         table_num = tableinp()
@@ -954,6 +1058,7 @@ def main(args=None):
             auto_nav.find_table_6()
         elif inp == "backup":
             auto_nav.backup()
+            '''
 
     # create matplotlib figure
     # plt.ion()
@@ -962,7 +1067,7 @@ def main(args=None):
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
-'''
+
 
 
 if __name__ == '__main__':
