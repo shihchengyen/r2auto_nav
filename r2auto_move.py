@@ -27,8 +27,8 @@ with open("waypoints_sim.pickle","rb") as handle:
 print(waypoints)
 mapfile = 'map.txt'
 speedchange = 0.05
-angle_error = 4
-paths = {1:[0,1],2:[0,1,3],3:[0,1,2],4:[0,1,3,7],5:[0,9,4,8],6:[0,1,3,7,5,6]}
+angle_error = 2
+paths = {1:[0,1],2:[0,1,3],3:[0,1,2],4:[0,1,3,7],5:[0,4,8],6:[0,1,3,7,5,6]}
 # print("in in in ")
 count = 0
 rotatechange = 0.1
@@ -65,6 +65,8 @@ class Auto_Mover(Node):
     front = 5.0
     yaw = 0.0
     irdata = [-1,-1]
+    isCanPresent = ''
+
     # range = np.array([])
     def __init__(self) -> None:
         self.x = -1
@@ -102,7 +104,8 @@ class Auto_Mover(Node):
     def ir_callbackR (self,msg):
         self.irdata[1] = msg.data
     def can_callback(self,msg):
-        self.can = msg.data
+        global can
+        can = msg.data
     def odom_callback(self, msg):
         # # print("callback")
         #For map2base
@@ -237,6 +240,7 @@ class Auto_Mover(Node):
                 twist.angular.z = 0.0
                 self.publisher_.publish(twist)
                 follow = False
+
     def test_angle(self):
         
         twist = geometry_msgs.msg.Twist()
@@ -245,6 +249,7 @@ class Auto_Mover(Node):
             print(int(100*self.orien))
             self.publisher_.publish(twist)
             rclpy.spin_once(self)
+
     def pick_direction(self):
         print("excuted pick_direction")
         twist = geometry_msgs.msg.Twist()
@@ -303,8 +308,8 @@ class Auto_Mover(Node):
         theta = (atan2(self.goal_y-self.y,self.goal_x-self.x))
         inc_x = 10000000 
         degree_to_turn = math.degrees(theta - self.orien )
-        self.sign = np.sign(degree_to_turn)
-        degree_to_turn = math.degrees(theta - self.orien )
+        sign = np.sign(degree_to_turn)
+        # degree_to_turn = math.degrees(theta - self.orien )
         try:
 
                 while inc_x != 0:
@@ -316,7 +321,7 @@ class Auto_Mover(Node):
                     current_angle =  math.degrees(self.orien)
                     # print("x",self.x, "inc",inc_x)
                     inc_y = self.goal_y - self.y
-                    degree_to_turn = (int(100*math.radians(theta))) - int(100*self.orien )
+                    # degree_to_turn = (int(100*math.radians(theta))) - int(100*self.orien )
                     # if abs(degree_to_turn) - 2 > angle_error:
                     #     twist.linear.x = 0.0
                     #     twist.angular.z = 0.0
@@ -326,12 +331,12 @@ class Auto_Mover(Node):
                         # print("angle finding")
                         # self.rotatebot(degree_to_turn)
                         twist.linear.x = 0.0
-                        twist.angular.z = 0.5 
+                        twist.angular.z = 0.5 * sign
                         print("degree to turn", degree_to_turn)
                         print("current angle", math.degrees(self.orien))
                         print("theta", math.degrees(theta))
                         # print(sign)
-                        print(self.sign)
+                        print(sign)
                         print(point)
                     
                     
@@ -381,6 +386,7 @@ class Auto_Mover(Node):
             twist.linear.x = 0.0
             twist.angular.z = 0.0
             self.publisher_.publish(twist)
+
     def run_combi(self,paths):
         for point in paths:
             self.travelling_point(point)
@@ -433,6 +439,8 @@ class Auto_Mover(Node):
                 self.follow = False
 
     def path(self):
+        # global table
+        # table  = int(input("Input table number:") )
         try:
             print(can)
             if table == 0:
@@ -589,6 +597,7 @@ def main(args = None):
             client.subscribe("TableNo")
             rclpy.spin_once(auto_move)
             # auto_move.dock()
+            print(auto_move.isCanPresent)
             if can == True:
                 auto_move.path()
             else:
