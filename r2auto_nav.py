@@ -38,7 +38,7 @@ mapfile = 'map.txt'
 def euler_from_quaternion(x, y, z, w):
     """
     Convert a quaternion into euler angles (roll, pitch, yaw)
-    roll is rotation around x in radians (counterclockwise)
+    roll is rotation around x in radians (counterclockwise
     pitch is rotation around y in radians (counterclockwise)
     yaw is rotation around z in radians (counterclockwise)
     """
@@ -121,7 +121,8 @@ class AutoNav(Node):
         # self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width,order='F'))
         self.occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width))
         # print to file
-        # np.savetxt(mapfile, self.occdata)
+        np.savetxt(mapfile, self.occdata)   # uncomment to create a file named map.txt in the directory in which you ran r2auto_nav.
+
 
 
     def scan_callback(self, msg):
@@ -129,7 +130,7 @@ class AutoNav(Node):
         # create numpy array
         self.laser_range = np.array(msg.ranges)
         # print to file
-        # np.savetxt(scanfile, self.laser_range)
+        np.savetxt(scanfile, self.laser_range)  # uncomment to create a file named lidar.txt in the directory in which you ran r2auto_nav.
         # replace 0's with nan
         self.laser_range[self.laser_range==0] = np.nan
 
