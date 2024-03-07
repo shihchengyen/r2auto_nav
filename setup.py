@@ -5,7 +5,7 @@ package_name = 'auto_nav'
 setup(
     name=package_name,
     version='0.0.0',
-    packages=[package_name],
+    packages=[package_name, package_name + '.httpReq'],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -26,6 +26,7 @@ setup(
             'r2occupancy = auto_nav.r2occupancy:main',
             'r2occupancy2 = auto_nav.r2occupancy2:main',
             'r2auto_nav = auto_nav.r2auto_nav:main',
+            'httpdoornode = auto_nav.httpReq.httpdoornode:main',
         ],
     },
 )
