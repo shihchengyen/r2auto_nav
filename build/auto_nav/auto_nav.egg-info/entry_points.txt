@@ -1,0 +1,9 @@
+[console_scripts]
+httpdoornode = auto_nav.httpReq.httpdoornode:main
+r2auto_nav = auto_nav.r2auto_nav:main
+r2mover = auto_nav.r2mover:main
+r2moverotate = auto_nav.r2moverotate:main
+r2occupancy = auto_nav.r2occupancy:main
+r2occupancy2 = auto_nav.r2occupancy2:main
+r2scanner = auto_nav.r2scanner:main
+
