@@ -13,7 +13,7 @@ class DoorHandler(Node):
         self.httpESP = HttpESP(self.espIP)
         
         # Create a subscriber to the topic "doorRequest"
-        # Listers for the door request from the main control node
+        # Listens for the door request from the main control node
         self.subscription = self.create_subscription(
             String,
             'doorRequest',

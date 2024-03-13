@@ -5,7 +5,7 @@ package_name = 'auto_nav'
 setup(
     name=package_name,
     version='0.0.0',
-    packages=[package_name, package_name + '.httpReq', package_name + '.mainNode'],
+    packages=[package_name, package_name + '.httpReq', package_name + '.mainNode', package_name + '.bucketFinder'],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -27,6 +27,8 @@ setup(
             'r2occupancy2 = auto_nav.r2occupancy2:main',
             'r2auto_nav = auto_nav.r2auto_nav:main',
             'httpDoorNode = auto_nav.httpReq.httpDoorNode:main',
+            'mainNode = auto_nav.mainNode.mainNode:main',
+            'bucketFinderNode = auto_nav.bucketFinder.bucketFinderNode:main',
         ],
     },
 )
