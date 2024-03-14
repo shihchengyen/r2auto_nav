@@ -1,48 +1,24 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from std_msgs.msg import String
-from nav_msgs.msg import Odometry
+from std_msgs.msg import UInt8, Float64, String
 from geometry_msgs.msg import Twist, Pose
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid
-from tools.angleConversion import euler_from_quaternion
 import numpy as np
 import math
-import cmath
 
 
-# code from https://automaticaddison.com/how-to-convert-a-quaternion-into-euler-angles-in-python/
-def euler_from_quaternion(x, y, z, w):
-    """
-    Convert a quaternion into euler angles (roll, pitch, yaw)
-    roll is rotation around x in radians (counterclockwise)
-    pitch is rotation around y in radians (counterclockwise)
-    yaw is rotation around z in radians (counterclockwise)
-    """
-    t0 = +2.0 * (w * x + y * z)
-    t1 = +1.0 - 2.0 * (x * x + y * y)
-    roll_x = math.atan2(t0, t1)
-
-    t2 = +2.0 * (w * y - z * x)
-    t2 = +1.0 if t2 > +1.0 else t2
-    t2 = -1.0 if t2 < -1.0 else t2
-    pitch_y = math.asin(t2)
-
+# return the rotation angle around z axis in degrees (counterclockwise)
+def angle_from_quaternion(x, y, z, w):
     t3 = +2.0 * (w * z + x * y)
     t4 = +1.0 - 2.0 * (y * y + z * z)
-    yaw_z = math.atan2(t3, t4)
-
-    return roll_x, pitch_y, yaw_z  # in radians
-
-
-# constants
-rotatechange = 0.1
+    return math.degrees(math.atan2(t3, t4))
 
 
 class MasterNode(Node):
     def __init__(self):
-        super().__init__('Node')
+        super().__init__('masterNode')
 
         ''' ================================================ http request ================================================ '''
         # Create a subscriber to the topic "doorStatus"
@@ -81,24 +57,7 @@ class MasterNode(Node):
         ''' ================================================ servo control ================================================ '''
         # Create a publisher to the topic "servoRequest"
         # Publishes the servoRequest to the servoControlNode
-        self.publisher_ = self.create_publisher(String, 'servoRequest', 10)
-
-        ''' ================================================ TurtleBot control ================================================ '''
-        # Create a publisher for moving TurtleBot
-        self.publisher_ = self.create_publisher(Twist, 'cmd_vel', 10)
-
-        ''' ================================================ odometry ================================================ '''
-        # Create a subscriber to the topic "odom"
-        self.odom_subscription = self.create_subscription(
-            Odometry,
-            'odom',
-            self.odom_callback,
-            10)
-        self.odom_subscription  # prevent unused variable warning
-        # initialize variables
-        self.roll = 0
-        self.pitch = 0
-        self.yaw = 0
+        self.servo_publisher = self.create_publisher(String, 'servoRequest', 10)
 
         ''' ================================================ lidar ================================================ '''
         # Create a subscriber to the topic "scan"
@@ -119,6 +78,7 @@ class MasterNode(Node):
             qos_profile_sensor_data)
         self.occ_subscription  # prevent unused variable warning
         self.occdata = np.array([])
+        self.yaw = 0
 
         ''' ================================================ robot position ================================================ '''
         # Create a subscriber to the topic
@@ -128,7 +88,15 @@ class MasterNode(Node):
             self.pos_callback,
             10)
 
-        self.get_logger().info("mainNode has started, bitchesss! >:D")
+        ''' ================================================ cmd_linear ================================================ '''
+        # Create a publisher to the topic "cmd_linear", which can stop and move forward the robot
+        self.linear_publisher = self.create_publisher(UInt8, 'cmd_linear', 10)
+
+        ''' ================================================ cmd_angle ================================================ '''
+        # Create a publisher to the topic "cmd_angle", which can rotate the robot
+        self.angle_publisher = self.create_publisher(Float64, 'cmd_angle', 10)
+
+        self.get_logger().info("MasterNode has started, bitchesss! >:D")
 
     def http_listener_callback(self, msg):
         # "idle", "door1", "door2", "connection error", "http error"
@@ -137,11 +105,6 @@ class MasterNode(Node):
     def switch_listener_callback(self, msg):
         # "released" or "pressed"
         self.switchStatus = msg.data
-
-    def odom_callback(self, msg):
-        orientation_quat = msg.pose.pose.orientation
-        self.roll, self.pitch, self.yaw = euler_from_quaternion(orientation_quat.x, orientation_quat.y,
-                                                                orientation_quat.z, orientation_quat.w)
 
     def scan_callback(self, msg):
         # create numpy array
@@ -174,60 +137,10 @@ class MasterNode(Node):
         # Note: those values are different from the values obtained from odom
         self.pos_x = msg.position.x
         self.pos_y = msg.position.y
-        self.map_roll, self.map_pitch, self.map_yaw = euler_from_quaternion(msg.orientation.x, msg.orientation.y,
-                                                                            msg.orientation.z, msg.orientation.w)
-        self.get_logger().info('x y yaw: %f %f %f' % (self.pos_x, self.pos_y, self.map_yaw))
+        # in degrees (not radians)
+        self.yaw = angle_from_quaternion(msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w)
+        self.get_logger().info('x y yaw: %f %f %f' % (self.pos_x, self.pos_y, self.yaw))
 
-    def rotatebot(self, rot_angle):
-        # create Twist object
-        twist = Twist()
-
-        # get current yaw angle
-        current_yaw = self.yaw
-        # log the info
-        self.get_logger().info('Current: %f' % math.degrees(current_yaw))
-        # we are going to use complex numbers to avoid problems when the angles go from
-        # 360 to 0, or from -180 to 180
-        c_yaw = complex(math.cos(current_yaw), math.sin(current_yaw))
-        # calculate desired yaw
-        target_yaw = current_yaw + math.radians(rot_angle)
-        # convert to complex notation
-        c_target_yaw = complex(math.cos(target_yaw), math.sin(target_yaw))
-        self.get_logger().info('Desired: %f' % math.degrees(cmath.phase(c_target_yaw)))
-        # divide the two complex numbers to get the change in direction
-        c_change = c_target_yaw / c_yaw
-        # get the sign of the imaginary component to figure out which way we have to turn
-        c_change_dir = np.sign(c_change.imag)
-        # set linear speed to zero so the TurtleBot rotates on the spot
-        twist.linear.x = 0.0
-        # set the direction to rotate
-        twist.angular.z = c_change_dir * rotatechange
-        # start rotation
-        self.publisher_.publish(twist)
-
-        # we will use the c_dir_diff variable to see if we can stop rotating
-        c_dir_diff = c_change_dir
-        # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
-        # if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
-        # becomes -1.0, and vice versa
-        while (c_change_dir * c_dir_diff > 0):
-            # allow the callback functions to run
-            rclpy.spin_once(self)
-            current_yaw = self.yaw
-            # convert the current yaw to complex form
-            c_yaw = complex(math.cos(current_yaw), math.sin(current_yaw))
-            # self.get_logger().info('Current Yaw: %f' % math.degrees(current_yaw))
-            # get difference in angle between current and target
-            c_change = c_target_yaw / c_yaw
-            # get the sign to see if we can stop
-            c_dir_diff = np.sign(c_change.imag)
-            # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
-
-        self.get_logger().info('End Yaw: %f' % math.degrees(current_yaw))
-        # set the rotation speed to 0
-        twist.angular.z = 0.0
-        # stop the rotation
-        self.publisher_.publish(twist)
 
 
 def main(args=None):
