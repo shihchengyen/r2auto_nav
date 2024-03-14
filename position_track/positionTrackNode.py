@@ -25,6 +25,8 @@ class PositionTrackNode(Node):
         timer_period = 0.05
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
+        self.get_logger().info("positionTrackNode has started! :D")
+
     def timer_callback(self):
         # create numpy array
         msg = Pose()
