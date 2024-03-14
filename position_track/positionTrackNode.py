@@ -1,26 +1,20 @@
-# https://github.com/wr1159/r2auto_nav/blob/main/map2base.py
-
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import Pose
-import numpy as np
 from tf2_ros import TransformException
-
-# Stores known frames and offers frame graph requests
 from tf2_ros.buffer import Buffer
-
-# Easy way to request and receive coordinate frame transform information
 from tf2_ros.transform_listener import TransformListener
 
 
-# This program will publish a topic /position which will be the information of the transform from tf /map to /base_link, this will allow
-# us to determine the robots location and rotation in the map.
+# imported from https://github.com/wr1159/r2auto_nav/blob/main/map2base.py
 
-class PositionHandleNode(Node):
+# This program will publish a topic /position which will be the information of the transform from tf /map to /base_link.
+# This will allow us to determine the robots location and rotation in the map.
+
+class PositionTrackNode(Node):
 
     def __init__(self):
-        super().__init__('positionHandleNode')
+        super().__init__('positionTrackNode')
         self.declare_parameter('target_frame', 'base_footprint')
         self.target_frame = self.get_parameter('target_frame').get_parameter_value().string_value
 
@@ -60,15 +54,14 @@ class PositionHandleNode(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    position_handler = PositionHandleNode()
+    position_traker = PositionTrackNode()
 
-    rclpy.spin(position_handler)
-
-    # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
-    position_handler.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(position_traker)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        position_traker.destroy_node()
 
 
 if __name__ == '__main__':

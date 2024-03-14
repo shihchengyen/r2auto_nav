@@ -20,13 +20,15 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'r2mover = auto_nav.r2mover:main',
-            'r2moverotate = auto_nav.r2moverotate:main',
-            'r2scanner = auto_nav.r2scanner:main',
-            'r2occupancy = auto_nav.r2occupancy:main',
-            'r2occupancy2 = auto_nav.r2occupancy2:main',
-            'r2auto_nav = auto_nav.r2auto_nav:main',
-            'httpdoornode = auto_nav.httpReq.httpdoornode:main',
+            'r2mover = auto_nav.ref.r2mover:main',
+            'r2moverotate = auto_nav.ref.r2moverotate:main',
+            'r2scanner = auto_nav.ref.r2scanner:main',
+            'r2occupancy = auto_nav.ref.r2occupancy:main',
+            'r2occupancy2 = auto_nav.ref.r2occupancy2:main',
+            'r2auto_nav = auto_nav.ref.r2auto_nav:main',
+            'master = auto_nav.master.masterNode:main'
+            'position_track = auto.nav.position_track.positionTrackNode:main'
+            'http_req = auto_nav.http_req.httpDoorNode:main',
         ],
     },
 )
