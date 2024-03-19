@@ -88,6 +88,7 @@ class RobotControlNode(Node):
 
     def angle_callback(self, msg): 
         # takes in delta angle in degrees
+        # +- 180 cannot work as the direction may change between initial and first iteration, +- 179 seems to work
         # +ve is anti clockwise, -ve is clockwise
         
         if msg.data == 0:
@@ -103,12 +104,17 @@ class RobotControlNode(Node):
             self.complexCurrentYaw = complex(math.cos(self.currentYaw),math.sin(self.currentYaw))
             self.complexTargetYaw = complex(math.cos(self.targetYaw),math.sin(self.targetYaw))
             
-            self.initialDirection = np.sign(cmath.phase(self.complexTargetYaw / self.complexCurrentYaw )) 
-                        
+            # divide the two complex numbers to get the change in direction
+            self.complexChange = self.complexTargetYaw / self.complexCurrentYaw
+            
+            # get the sign of the imaginary component to figure out which way we have to turn            
+            self.initialDirection = np.sign(cmath.phase(self.complexChange)) 
+            
+            self.get_logger().info('angle_callback: complexChange: %s' % str(self.complexChange))
             self.get_logger().info('angle_callback: initialDirection: %f' % self.initialDirection)
             self.get_logger().info('angle_callback: Current: %f' % math.degrees(self.currentYaw))
             self.get_logger().info('angle_callback: Desired: %f' % math.degrees(cmath.phase(self.complexTargetYaw)))
-
+            
     def move_forward(self):
         twist = Twist()
 
@@ -137,9 +143,11 @@ class RobotControlNode(Node):
         
         # divide the two complex numbers to get the change in direction
         self.complexChange = self.complexTargetYaw / self.complexCurrentYaw
+        # self.get_logger().info('complexChange: %s' % str(self.complexChange))
         
         # get the sign of the imaginary component to figure out which way we have to turn
         self.directionChange = np.sign(cmath.phase(self.complexChange))
+        self.get_logger().info('directionChange: %f' % self.directionChange)
                        
         # if the direction of change is different from intital direction, then we have to rotate enough
         if self.initialDirection * self.directionChange > 0:
