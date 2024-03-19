@@ -13,7 +13,7 @@ class DoorHandler(Node):
         self.httpESP = HttpESP(self.espIP)
         
         # Create a subscriber to the topic "doorRequest"
-        # Listers for the door request from the main control node
+        # Listens for the door request from the main control node
         self.subscription = self.create_subscription(
             String,
             'doorRequest',
@@ -58,8 +58,6 @@ class DoorHandler(Node):
             self.statsToPublish = "idle"
             pass
         elif self.state == "sendRequest":
-            self.statsToPublish = "sendRequest"
-            
             # send a request to the ESP, this is blocking so will return once its done, no need wait state
             # it blocks publishing also, idk i thought call back supposed to not be blocked??
             # there is a connection fail timeout so the try block to prevent crashing
