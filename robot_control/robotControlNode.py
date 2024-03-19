@@ -9,7 +9,7 @@ import cmath
 
 # constants
 linear_speed = 0.1
-angle_speed = 0.1
+angle_speed = 0.5
 
 
 # return the rotation angle around z axis in radians (counterclockwise)
@@ -36,6 +36,13 @@ class RobotControlNode(Node):
         ''' ================================================ TurtleBot control ================================================ '''
         # Create a publisher for moving TurtleBot
         self.publisher_ = self.create_publisher(Twist, 'cmd_vel', 10)
+        publisher_period = 0.1  # seconds
+        self.publisherTimer = self.create_timer(publisher_period, self.publisher_callback_fsm)
+        
+        # publisher_callback_fsm is used as the fsm to control the robot also
+        self.state = "idle"
+        self.targetAngle = 0
+        self.currentYaw = 0
 
         ''' ================================================ odometry ================================================ '''
         # Create a subscriber to the topic "odom"
@@ -57,7 +64,7 @@ class RobotControlNode(Node):
 
         ''' ================================================ cmd_angle ================================================ '''
         # Create a subscriber to the topic "cmd_angle"
-        self.linear_subscription = self.create_subscription(
+        self.angle_subscription = self.create_subscription(
             Float64,
             'cmd_angle',
             self.angle_callback,
@@ -71,14 +78,36 @@ class RobotControlNode(Node):
 
     def linear_callback(self, msg):
         if msg.data == 0:
-            self.stop()
+            self.state = "idle"
+            self.get_logger().info("linear_callback: idle")
         elif msg.data == 1:
-            self.move_forward()
+            self.state = "forward"
+            self.get_logger().info("linear_callback: forward")
         else:
-            self.get_logger("Error: Publication to 'cmd_vel' must be 0 or 1, but got %d" % msg.data)
+            self.get_logger().info("Error: Publication to 'cmd_vel' must be 0 or 1, but got %d" % msg.data)
 
-    def angle_callback(self, msg):
-        self.rotatebot(msg.data)
+    def angle_callback(self, msg): 
+        # takes in delta angle in degrees
+        # +ve is anti clockwise, -ve is clockwise
+        
+        if msg.data == 0:
+            self.state = "idle"
+            self.get_logger().info("angle_callback: idle")
+        else:
+            self.state = "rotate"
+            self.currentYaw = self.yaw
+            self.targetYaw = self.currentYaw + math.radians(msg.data)
+            
+            # we are going to use complex numbers to avoid problems when the angles go from
+            # 360 to 0, or from -180 to 180
+            self.complexCurrentYaw = complex(math.cos(self.currentYaw),math.sin(self.currentYaw))
+            self.complexTargetYaw = complex(math.cos(self.targetYaw),math.sin(self.targetYaw))
+            
+            self.initialDirection = np.sign(cmath.phase(self.complexTargetYaw / self.complexCurrentYaw )) 
+                        
+            self.get_logger().info('angle_callback: initialDirection: %f' % self.initialDirection)
+            self.get_logger().info('angle_callback: Current: %f' % math.degrees(self.currentYaw))
+            self.get_logger().info('angle_callback: Desired: %f' % math.degrees(cmath.phase(self.complexTargetYaw)))
 
     def move_forward(self):
         twist = Twist()
@@ -96,68 +125,62 @@ class RobotControlNode(Node):
 
         self.publisher_.publish(twist)
 
-    def rotatebot(self, rot_angle):
+    def rotatebot(self):
         twist = Twist()
-
-        # get current yaw angle
-        current_yaw = self.yaw
-        self.get_logger().info('Current: %f' % math.degrees(current_yaw))
-        # we are going to use complex numbers to avoid problems when the angles go from
-        # 360 to 0, or from -180 to 180
-        c_yaw = complex(math.cos(current_yaw), math.sin(current_yaw))
-        # calculate desired yaw
-        target_yaw = current_yaw + math.radians(rot_angle)
-        # convert to complex notation
-        c_target_yaw = complex(math.cos(target_yaw), math.sin(target_yaw))
-        self.get_logger().info('Desired: %f' % math.degrees(cmath.phase(c_target_yaw)))
-        # divide the two complex numbers to get the change in direction
-        c_change = c_target_yaw / c_yaw
-        # get the sign of the imaginary component to figure out which way we have to turn
-        c_change_dir = np.sign(c_change.imag)
+        
         # set linear speed to zero so the TurtleBot rotates on the spot
         twist.linear.x = 0.0
-        # set the direction to rotate
-        twist.angular.z = c_change_dir * angle_speed
-        # start rotation
-        self.publisher_.publish(twist)
+        
+        self.currentYaw = self.yaw
+        self.complexCurrentYaw = complex(math.cos(self.currentYaw),math.sin(self.currentYaw))
+        self.get_logger().info('angle_callback: Current: %f' % math.degrees(self.currentYaw))
+        
+        # divide the two complex numbers to get the change in direction
+        self.complexChange = self.complexTargetYaw / self.complexCurrentYaw
+        
+        # get the sign of the imaginary component to figure out which way we have to turn
+        self.directionChange = np.sign(cmath.phase(self.complexChange))
+                       
+        # if the direction of change is different from intital direction, then we have to rotate enough
+        if self.initialDirection * self.directionChange > 0:
+            # # speed scaling based on how much we have to rotate
+            # speedScaling = 1 if (abs(cmath.phase(self.complexChange)) > 10) else (abs(cmath.phase(self.complexChange)) / 10)
+            speedScaling = 1
+            # self.get_logger().info('speedScaling: %f' % speedScaling)
+            # set the direction and speed to rotate
+            twist.angular.z = self.directionChange * angle_speed * speedScaling
+        else:
+            self.get_logger().info('End Yaw: %f' % math.degrees(self.currentYaw))
+            # set the rotation speed to 0
+            twist.angular.z = 0.0
+            
+            # set state back to idle
+            self.state = "idle"
 
-        # we will use the c_dir_diff variable to see if we can stop rotating
-        c_dir_diff = c_change_dir
-        # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
-        # if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
-        # becomes -1.0, and vice versa
-        while (c_change_dir * c_dir_diff > 0):
-            # allow the callback functions to run
-            rclpy.spin_once(self)
-            current_yaw = self.yaw
-            # convert the current yaw to complex form
-            c_yaw = complex(math.cos(current_yaw), math.sin(current_yaw))
-            # self.get_logger().info('Current Yaw: %f' % math.degrees(current_yaw))
-            # get difference in angle between current and target
-            c_change = c_target_yaw / c_yaw
-            # get the sign to see if we can stop
-            c_dir_diff = np.sign(c_change.imag)
-            # self.get_logger().info('c_change_dir: %f c_dir_diff: %f' % (c_change_dir, c_dir_diff))
-
-        self.get_logger().info('End Yaw: %f' % math.degrees(current_yaw))
-        # set the rotation speed to 0
-        twist.angular.z = 0.0
-        # stop the rotation
-        self.publisher_.publish(twist)
-
+        # publish the twist message with angular speed
+        self.publisher_.publish(twist)      
+        
+    def publisher_callback_fsm(self):
+        if self.state == "idle":
+            self.stop()
+        elif self.state == "forward":
+            self.move_forward()
+        elif self.state == "rotate":
+            self.rotatebot()
+        else:
+            self.state == "idle"
 
 def main(args=None):
     rclpy.init(args=args)
 
     robot_control_node = RobotControlNode()
-
+   
     try:
         rclpy.spin(robot_control_node)
     except KeyboardInterrupt:
         pass
     finally:
         robot_control_node.destroy_node()
-
 
 if __name__ == '__main__':
     main()
