@@ -26,8 +26,8 @@ setup(
             'r2occupancy = auto_nav.ref.r2occupancy:main',
             'r2occupancy2 = auto_nav.ref.r2occupancy2:main',
             'r2auto_nav = auto_nav.ref.r2auto_nav:main',
-            'master = auto_nav.master.masterNode:main'
-            'position_track = auto_nav.position_track.positionTrackNode:main'
+            'master = auto_nav.master.masterNode:main',
+            'position_track = auto_nav.position_track.positionTrackNode:main',
             'httpDoorNode = auto_nav.httpReq.httpDoorNode:main',
             'bucketFinderNode = auto_nav.bucketFinder.bucketFinderNode:main',
             'robotControlNode = auto_nav.robot_control.robotControlNode:main',

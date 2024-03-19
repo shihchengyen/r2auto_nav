@@ -120,6 +120,12 @@ class BucketFinderHandler(Node):
             
             if self.show_plot == 'y':
                 self.plot_lidar_readings()
+                
+        # only publish if its not NaN
+        if not np.isnan(self.bucket_angle):
+            msg = UInt16()
+            msg.data = int(self.bucket_angle)
+            self.publisher_.publish(msg)
         
     def index_to_angle(self, index, arrLen):
         # return in degrees
