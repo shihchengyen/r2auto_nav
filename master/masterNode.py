@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from std_msgs.msg import UInt8, UInt16, Float64, String
+from std_msgs.msg import UInt8, UInt16, Float64, String, Int8
 from geometry_msgs.msg import Twist, Pose
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid
@@ -99,11 +99,23 @@ class MasterNode(Node):
 
         ''' ================================================ cmd_linear ================================================ '''
         # Create a publisher to the topic "cmd_linear", which can stop and move forward the robot
-        self.linear_publisher = self.create_publisher(UInt8, 'cmd_linear', 10)
+        self.linear_publisher = self.create_publisher(Int8, 'cmd_linear', 10)
 
-        ''' ================================================ cmd_angle ================================================ '''
+        ''' ================================================ cmd_anglularVel ================================================ '''
         # Create a publisher to the topic "cmd_angle", which can rotate the robot
-        self.angle_publisher = self.create_publisher(Float64, 'cmd_angle', 10)
+        self.angle_publisher = self.create_publisher(Int8, 'cmd_anglularVel', 10)
+        
+        ''' ================================================ cmd_deltaAngle ================================================ '''
+        # Create a publisher to the topic "cmd_angle", which can rotate the robot
+        self.angle_publisher = self.create_publisher(Float64, 'cmd_deltaAngle', 10)
+        
+        ''' ================================================ robotControlNode_state_feedback ================================================ '''
+        # Create a subscriber to the robotControlNode_state_feedback
+        self.pos_subscription = self.create_subscription(
+            String,
+            'robotControlNode_state_feedback',
+            self.robotControlNode_state_feedback_callback,
+            10)
         
         ''' ================================================ Master FSM ================================================ '''
         self.state = "idle"
@@ -186,6 +198,52 @@ class MasterNode(Node):
     def masterFSM(self):
         if self.state == "idle":
             pass
+        elif self.state == "checking_walls_distance":
+            # lidar minimum is 12 cm send by node, datasheet says 16 cm
+            # by experimentation need 30 cm
+            # if less than 30 cm from nearest object, move away from it, else can find the bucket using bucketFinderNode
+            # bucket finder doesnt work if its too close to wall
+            min_distance = min(self.laser_range)
+            
+            self.get_logger().info('min_distance %f' % min_distance)
+            
+            if min_distance < 0.3:
+                self.get_logger().info('too close! moving away')
+                
+                argmin = np.nanargmin(self.laser_range)
+                angle_min = self.index_to_angle(argmin, self.range_len)
+                
+                self.get_logger().info('angle_min %f' % angle_min)
+                
+            else:
+                
+                
+                # if the closest object is in not at the back of the robot, rotate first, else move away from it
+                if abs(angle_min - 180) > 5:
+                    # set linear to be zero 
+                    linear_msg = UInt8()
+                    linear_msg.data = 0
+                    self.linear_publisher.publish(linear_msg)
+                    
+                    # angle_min > or < 180, the delta angle to move away from the object is still the same
+                    angle_msg = Float64()
+                    angle_msg.data = angle_min - 180.0
+                    self.angle_publisher.publish(angle_msg)
+                else:
+                    # move away until its more than 30 cm
+                    # set linear to be 1 
+                    linear_msg = UInt8()
+                    linear_msg.data = 1
+                    self.linear_publisher.publish(linear_msg)
+                    
+                    # set delta angle = 0
+                    angle_msg = Float64()
+                    angle_msg.data = 0.0
+                    self.angle_publisher.publish(angle_msg)
+                    
+                    
+                    
+        elif self.state == "moving_away_from_walls":
         elif self.state == "locating_bucket":
             self.get_logger().info('self.state %s' % self.state)
 
