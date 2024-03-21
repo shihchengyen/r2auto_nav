@@ -212,6 +212,16 @@ class RobotControlNode(Node):
         msg = String()
         msg.data = self.state
         self.publisherFB.publish(msg)
+        
+    def custom_destroy_node(self):
+        twist = Twist()
+        # stop the robot
+        twist.linear.x = 0.0
+        twist.angular.z = 0.0
+        
+        self.publisherFSM.publish(twist)  
+        
+        self.destroy_node()
             
 def main(args=None):
     rclpy.init(args=args)
@@ -223,7 +233,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        robot_control_node.destroy_node()
+        robot_control_node.custom_destroy_node()
 
 if __name__ == '__main__':
     main()
