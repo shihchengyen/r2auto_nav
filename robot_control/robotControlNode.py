@@ -37,7 +37,7 @@ class RobotControlNode(Node):
         # Create a publisher for moving TurtleBot
         self.publisherFSM = self.create_publisher(Twist, 'cmd_vel', 10)
         publisher_period = 0.1  # seconds
-        self.publisherTimer = self.create_timer(publisher_period, self.publisher_callback_fsm)
+        self.publisherFSMTimer = self.create_timer(publisher_period, self.publisher_callback_fsm)
         
         # publisher_callback_fsm is used as the fsm to control the robot also
         self.state = "rotateStop"
@@ -50,7 +50,7 @@ class RobotControlNode(Node):
         # Create a publisher for robotControlNode_state_feedback
         self.publisherFB = self.create_publisher(String, 'robotControlNode_state_feedback', 10)
         publisher_period = 0.1  # seconds
-        self.publisherTimer = self.create_timer(publisher_period, self.publisher_callback_state_feedback)
+        self.publisherFBTimer = self.create_timer(publisher_period, self.publisher_callback_state_feedback)
 
         ''' ================================================ odometry ================================================ '''
         # Create a subscriber to the topic "odom"

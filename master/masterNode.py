@@ -103,11 +103,11 @@ class MasterNode(Node):
 
         ''' ================================================ cmd_anglularVel ================================================ '''
         # Create a publisher to the topic "cmd_angle", which can rotate the robot
-        self.angle_publisher = self.create_publisher(Int8, 'cmd_anglularVel', 10)
+        self.anglularVel_publisher = self.create_publisher(Int8, 'cmd_anglularVel', 10)
         
         ''' ================================================ cmd_deltaAngle ================================================ '''
         # Create a publisher to the topic "cmd_angle", which can rotate the robot
-        self.angle_publisher = self.create_publisher(Float64, 'cmd_deltaAngle', 10)
+        self.deltaAngle_publisher = self.create_publisher(Float64, 'cmd_deltaAngle', 10)
         
         ''' ================================================ robotControlNode_state_feedback ================================================ '''
         # Create a subscriber to the robotControlNode_state_feedback
@@ -187,6 +187,8 @@ class MasterNode(Node):
         self.yaw = angle_from_quaternion(msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w)
         self.get_logger().info('x y yaw: %f %f %f' % (self.pos_x, self.pos_y, self.yaw))
         
+    def robotControlNode_state_feedback_callback(self, msg):
+        self.robotControlNodeState = msg.data
         
     def fsmDebug_callback(self, msg):
         self.state = msg.data
@@ -210,12 +212,27 @@ class MasterNode(Node):
             if min_distance < 0.3:
                 self.get_logger().info('too close! moving away')
                 
+                # get angle
                 argmin = np.nanargmin(self.laser_range)
                 angle_min = self.index_to_angle(argmin, self.range_len)
                 
                 self.get_logger().info('angle_min %f' % angle_min)
                 
+                # set linear to be zero 
+                linear_msg = UInt8()
+                linear_msg.data = 0
+                self.linear_publisher.publish(linear_msg)
+                
+                # angle_min > or < 180, the delta angle to move away from the object is still the same
+                deltaAngle_msg = Float64()
+                deltaAngle_msg.data = angle_min - 180.0
+                self.angle_publisher.publish(deltaAngle_msg)
+
+                self.state = "rotating_to_move_away_from_walls"
+
             else:
+                self.state = "rotating_to_bucket"
+                
                 
                 
                 # if the closest object is in not at the back of the robot, rotate first, else move away from it
@@ -244,6 +261,7 @@ class MasterNode(Node):
                     
                     
         elif self.state == "moving_away_from_walls":
+            pass
         elif self.state == "locating_bucket":
             self.get_logger().info('self.state %s' % self.state)
 
