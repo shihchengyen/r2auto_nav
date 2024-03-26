@@ -279,7 +279,7 @@ class MasterNode(Node):
             
             self.get_logger().info('[checking_walls_distance]: min_distance %f' % min_distance)
             
-            if min_distance < 0.30:
+            if min_distance < 0.35:
                 self.get_logger().info('[checking_walls_distance]: too close! moving away')
                 
                 # set linear to be zero 
@@ -316,6 +316,7 @@ class MasterNode(Node):
                 
                 # move until the back is more than 40 cm or stop if the front is less than 30 cm
                 # 40cm must be more than the 30cm from smallest distance, so that it wont rotate and get diff distance, lidar is not the center of rotation
+                # must use any not all incase of NaN
                 if any(self.laser_range[0:frontLeftIndex] < 0.30) or any(self.laser_range[frontRightIndex:] < 0.30):
                     # infront got something
                     self.get_logger().info('[rotating_to_move_away_from_walls]: something infront')
@@ -336,7 +337,7 @@ class MasterNode(Node):
                 else:
                     self.get_logger().info('[rotating_to_move_away_from_walls]: front is still clear! go forward')
                     
-                    if any(self.laser_range[backIndexL:backIndexH] < 0.4):
+                    if any(self.laser_range[backIndexL:backIndexH] < 0.40):
                         self.get_logger().info('[rotating_to_move_away_from_walls]: butt is still near! go forward')
                         
                         # set linear to be 127 to move forward fastest
@@ -440,10 +441,10 @@ class MasterNode(Node):
                 anglularVel_msg = Int8()
                 
                 if self.bucketAngle > 5 and self.bucketAngle < 180:
-                    anglularVel_msg.data = 64
+                    anglularVel_msg.data = 100
                     self.get_logger().info('[moving_to_bucket]: moving forward and left')
                 elif self.bucketAngle < 355 and self.bucketAngle > 180:
-                    anglularVel_msg.data = -64
+                    anglularVel_msg.data = -100
                     self.get_logger().info('[moving_to_bucket]: moving forward and right')
                 else:
                     anglularVel_msg.data = 0
