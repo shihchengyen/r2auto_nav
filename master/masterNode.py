@@ -160,16 +160,23 @@ class MasterNode(Node):
         # create numpy array to store lidar data
         self.laser_range = np.array(msg.ranges)
         
-        # read min and max range values
-        self.range_min = msg.range_min
-        self.range_max = msg.range_max
+        # # read min and max range values
+        # self.range_min = msg.range_min
+        # self.range_max = msg.range_max
         
-        # replace out of range values with nan
-        self.laser_range[self.laser_range < self.range_min] = np.nan
-        self.laser_range[self.laser_range > self.range_max] = np.nan
+        # self.get_logger().info("range_min: $s, range_max: $s" % (str(self.range_min), str(self.range_max)))
+        
+        # # replace out of range values with nan
+        # self.laser_range[self.laser_range < self.range_min] = np.nan
+        # self.laser_range[self.laser_range > self.range_max] = np.nan
+        
+        # replace 0's with nan
+        self.laser_range[self.laser_range==0] = np.nan
         
         # store the len since it changes
         self.range_len = len(self.laser_range)
+        # self.get_logger().info(str(self.laser_range))
+        
         
     def bucketAngle_listener_callback(self, msg):
         self.bucketAngle = msg.data
@@ -211,7 +218,7 @@ class MasterNode(Node):
         # return in degrees
         return (index / (arrLen - 1)) * 359
     
-    def index_to_angle(self, angle, arrLen):
+    def angle_to_index(self, angle, arrLen):
         # take deg give index
         return int((angle / 359) * (arrLen - 1))
     
@@ -244,23 +251,36 @@ class MasterNode(Node):
             deltaAngle_msg = Float64()
             deltaAngle_msg.data = 0.0
             self.deltaAngle_publisher.publish(deltaAngle_msg)
+            
+            # off limit switch
+            switch_msg = String()
+            switch_msg.data = "deactivate"
+            self.switch_publisher.publish(switch_msg)
+            
+            # # testin
+            # try:
+            #     argmin = np.nanargmin(self.laser_range)
+            #     angle_min = self.index_to_angle(argmin, self.range_len)
+            #     self.get_logger().info('[idle]: angle_min %f' % angle_min)
+            # except:
+            #     self.get_logger().info('[idle]: angle_min invalid')
+
         elif self.state == "checking_walls_distance":
             # lidar minimum is 12 cm send by node, datasheet says 16 cm
             # by experimentation need 30 cm
             # if less than 30 cm from nearest object, move away from it, else can find the bucket using bucketFinderNode
             # bucket finder doesnt work if its too close to wall
-            min_distance = min(self.laser_range)
+            
+            argmin = np.nanargmin(self.laser_range)
+            angle_min = self.index_to_angle(argmin, self.range_len)
+            self.get_logger().info('[checking_walls_distance]: angle_min %f' % angle_min)
+            
+            min_distance = self.laser_range[argmin]
             
             self.get_logger().info('[checking_walls_distance]: min_distance %f' % min_distance)
             
             if min_distance < 0.30:
                 self.get_logger().info('[checking_walls_distance]: too close! moving away')
-                
-                # get angle
-                argmin = np.nanargmin(self.laser_range)
-                angle_min = self.index_to_angle(argmin, self.range_len)
-                
-                self.get_logger().info('[checking_walls_distance]: angle_min %f' % angle_min)
                 
                 # set linear to be zero 
                 linear_msg = Int8()
@@ -282,46 +302,23 @@ class MasterNode(Node):
                 self.get_logger().info('[rotating_to_move_away_from_walls]: still rotating, waiting')
                 pass
             else:
-                frontLeftIndex = self.index_to_angle(10, self.range_len)
-                frontRightIndex = self.index_to_angle(350, self.range_len)
+                frontLeftIndex = self.angle_to_index(10, self.range_len)
+                frontRightIndex = self.angle_to_index(350, self.range_len)
                 
-                leftIndexL = self.index_to_angle(90-5, self.range_len)
-                leftIndexH = self.index_to_angle(90+5, self.range_len)
+                leftIndexL = self.angle_to_index(90-5, self.range_len)
+                leftIndexH = self.angle_to_index(90+5, self.range_len)
                 
-                rightIndexL = self.index_to_angle(270-5, self.range_len)
-                rightIndexH = self.index_to_angle(270+5, self.range_len)
+                rightIndexL = self.angle_to_index(270-5, self.range_len)
+                rightIndexH = self.angle_to_index(270+5, self.range_len)
                 
-                backIndexL = self.index_to_angle(180-5, self.range_len)
-                backIndexH = self.index_to_angle(180+5, self.range_len)
+                backIndexL = self.angle_to_index(180-5, self.range_len)
+                backIndexH = self.angle_to_index(180+5, self.range_len)
                 
-                if all(self.laser_range[backIndexL:backIndexH] < 0.4) and all(self.laser_range[0:frontLeftIndex] > 0.30) and all(self.laser_range[frontRightIndex:] > 0.30):
-                # if all(self.laser_range[backIndexL:backIndexH] > 0.3) or (all(self.laser_range[0:frontLeftIndex] < 0.30) and all(self.laser_range[frontRightIndex:] < 0.30)):
-                    # move until the back is more than 40 cm or stop if the front is less than 30 cm
-                    # 40cm must be more than the 30cm from smallest distance, so that it wont rotate and get diff distance, lidar is not the center of rotation
-            
-                    # set linear to be 127 to move forward fastest
-                    linear_msg = Int8()
-                    linear_msg.data = 127
-                    self.linear_publisher.publish(linear_msg)
-                    
-                    anglularVel_msg = Int8()
-                    
-                    # if left got something, rotate right
-                    # elif right got something, rotate left
-                    # else go straight
-                    if all(self.laser_range[leftIndexL:leftIndexH] < 0.30):
-                        anglularVel_msg.data = -127
-                        self.get_logger().info('[rotating_to_move_away_from_walls]: moving forward and right')
-                    elif all(self.laser_range[rightIndexL:rightIndexH] < 0.30):
-                        anglularVel_msg.data = 127
-                        self.get_logger().info('[rotating_to_move_away_from_walls]: moving forward and left')
-                    else:
-                        anglularVel_msg.data = 0
-                        self.get_logger().info('[rotating_to_move_away_from_walls]: moving forward')
-                        
-                    self.anglularVel_publisher.publish(anglularVel_msg)
-                else:
-                    # moved far enough
+                # move until the back is more than 40 cm or stop if the front is less than 30 cm
+                # 40cm must be more than the 30cm from smallest distance, so that it wont rotate and get diff distance, lidar is not the center of rotation
+                if any(self.laser_range[0:frontLeftIndex] < 0.30) or any(self.laser_range[frontRightIndex:] < 0.30):
+                    # infront got something
+                    self.get_logger().info('[rotating_to_move_away_from_walls]: something infront')
                     
                     # set linear to be zero
                     linear_msg = Int8()
@@ -335,6 +332,52 @@ class MasterNode(Node):
                     
                     # send back to checking_walls_distance to check for all distance again
                     self.state = "checking_walls_distance"
+                    
+                else:
+                    self.get_logger().info('[rotating_to_move_away_from_walls]: front is still clear! go forward')
+                    
+                    if any(self.laser_range[backIndexL:backIndexH] < 0.4):
+                        self.get_logger().info('[rotating_to_move_away_from_walls]: butt is still near! go forward')
+                        
+                        # set linear to be 127 to move forward fastest
+                        linear_msg = Int8()
+                        linear_msg.data = 127
+                        self.linear_publisher.publish(linear_msg)
+                    
+        
+                        anglularVel_msg = Int8()
+                        
+                        # if left got something, rotate right
+                        # elif right got something, rotate left
+                        # else go straight
+                        if all(self.laser_range[leftIndexL:leftIndexH] < 0.30):
+                            anglularVel_msg.data = -127
+                            self.get_logger().info('[rotating_to_move_away_from_walls]: moving forward and right')
+                        elif all(self.laser_range[rightIndexL:rightIndexH] < 0.30):
+                            anglularVel_msg.data = 127
+                            self.get_logger().info('[rotating_to_move_away_from_walls]: moving forward and left')
+                        else:
+                            anglularVel_msg.data = 0
+                            self.get_logger().info('[rotating_to_move_away_from_walls]: moving forward')
+                            
+                        self.anglularVel_publisher.publish(anglularVel_msg)
+                    else:
+                        # moved far enough
+                        self.get_logger().info('[rotating_to_move_away_from_walls]: moved far enough, butt is clear')
+                        
+                        # set linear to be zero
+                        linear_msg = Int8()
+                        linear_msg.data = 0
+                        self.linear_publisher.publish(linear_msg)
+                        
+                        # set delta angle = 0 to stop
+                        deltaAngle_msg = Float64()
+                        deltaAngle_msg.data = 0.0
+                        self.deltaAngle_publisher.publish(deltaAngle_msg)
+                        
+                        # send back to checking_walls_distance to check for all distance again
+                        self.state = "checking_walls_distance"
+                    
         elif self.state == "rotating_to_bucket":            
             # if close to forward, go to next state, else allign to bucket first
             if abs(self.bucketAngle) < 2:
@@ -377,6 +420,11 @@ class MasterNode(Node):
                     
                 # send to moving_to_bucket to wait for rotation to finish
                 self.state = "moving_to_bucket"
+                
+                # on limit switch
+                switch_msg = String()
+                switch_msg.data = "activate"
+                self.switch_publisher.publish(switch_msg)
         elif self.state == "moving_to_bucket":
             # if still rotating wait, else can move forward until hit bucket
             if self.robotControlNodeState == "rotateByAngle":
@@ -392,10 +440,10 @@ class MasterNode(Node):
                 anglularVel_msg = Int8()
                 
                 if self.bucketAngle > 5 and self.bucketAngle < 180:
-                    anglularVel_msg.data = 127
+                    anglularVel_msg.data = 64
                     self.get_logger().info('[moving_to_bucket]: moving forward and left')
                 elif self.bucketAngle < 355 and self.bucketAngle > 180:
-                    anglularVel_msg.data = -127
+                    anglularVel_msg.data = -64
                     self.get_logger().info('[moving_to_bucket]: moving forward and right')
                 else:
                     anglularVel_msg.data = 0
