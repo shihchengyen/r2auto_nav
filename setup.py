@@ -31,6 +31,7 @@ setup(
             'httpDoorNode = auto_nav.httpReq.httpDoorNode:main',
             'bucketFinderNode = auto_nav.bucketFinder.bucketFinderNode:main',
             'robotControlNode = auto_nav.robot_control.robotControlNode:main',
+            'frontierSearchNode = auto_nav.frontierSearch.frontierSearchNode:main',
         ],
     },
 )
