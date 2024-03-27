@@ -40,13 +40,16 @@ class BucketFinderHandler(Node):
         # create numpy array to store lidar data
         self.laser_range = np.array(msg.ranges)
         
-        # read min and max range values
-        self.range_min = msg.range_min
-        self.range_max = msg.range_max
+        # # read min and max range values
+        # self.range_min = msg.range_min
+        # self.range_max = msg.range_max
         
-        # replace out of range values with nan
-        self.laser_range[self.laser_range < self.range_min] = np.nan
-        self.laser_range[self.laser_range > self.range_max] = np.nan
+        # # replace out of range values with nan
+        # self.laser_range[self.laser_range < self.range_min] = np.nan
+        # self.laser_range[self.laser_range > self.range_max] = np.nan
+        
+        # replace 0's with nan
+        self.laser_range[self.laser_range==0] = np.nan
         
         # store the len since it changes
         self.range_len = len(self.laser_range)
@@ -171,14 +174,18 @@ class BucketFinderHandler(Node):
         # plt.title('drdtheta')
         
         # Clear the figure
-        plt.clf()   
+        plt.clf() 
         
-        # plotting r(theta)
-        plt.polar(np.arange(0, 360, 360/len(self.laser_range))/180*np.pi, self.laser_range, label='laser_range')
-        
-        # plotting dr/dtheta
-        # take absolute to not plot negative value and times 2 to scale is so its visible in one plot with self.laser_range
-        plt.polar(np.arange(0, 360, 360/len(self.drdtheta))/180*np.pi, 2 * np.abs(self.drdtheta), label='drdtheta')
+        # whack try to get rid of x and y dimension not match issue
+        try:  
+            # plotting r(theta)
+            plt.polar(np.arange(0, 360, 360/len(self.laser_range))/180*np.pi, self.laser_range, label='laser_range')
+            
+            # plotting dr/dtheta
+            # take absolute to not plot negative value and times 2 to scale is so its visible in one plot with self.laser_range
+            plt.polar(np.arange(0, 360, 360/len(self.drdtheta))/180*np.pi, 2 * np.abs(self.drdtheta), label='drdtheta')
+        except:
+            pass
         
         # plotting direciton of the bucket
         line = np.linspace(0, max(self.laser_range), 10)
@@ -188,6 +195,12 @@ class BucketFinderHandler(Node):
             lineAngle = np.empty(10)
             lineAngle.fill(self.bucket_angle*np.pi/180)
             plt.polar(lineAngle, line, label='bucket_angle')
+            
+        # helps debug for master node
+        argmin = np.nanargmin(self.laser_range)
+        lineAngle = np.empty(10)
+        lineAngle.fill(self.index_to_angle(argmin, len(self.laser_range))*np.pi/180)
+        plt.polar(lineAngle, line, label='bucket_angle')
         
         plt.legend()
         
