@@ -12,10 +12,15 @@ import scipy.stats
 
 import argparse
 
+from collections import deque
+
+from std_msgs.msg import Int16MultiArray
 
 # constants
 occ_bins = [-1, 0, 50, 100]
 map_bg_color = 1
+
+FRONTIER_THRESHOLD = 5
 
 # code from https://automaticaddison.com/how-to-convert-a-quaternion-into-euler-angles-in-python/
 def euler_from_quaternion(x, y, z, w):
@@ -40,7 +45,6 @@ def euler_from_quaternion(x, y, z, w):
 
     return roll_x, pitch_y, yaw_z # in radians
 
-
 class FrontierSearchNode(Node):
 
     def __init__(self, show_plot):
@@ -59,9 +63,9 @@ class FrontierSearchNode(Node):
         self.tfListener = tf2_ros.TransformListener(self.tfBuffer, self)
         
         ''' ================================================ Frontier Coords ================================================ '''
-        # # Create a publisher to the topic "frontierCoords", an array of coordinates relative to the map frame at where the frontiers are
-        # self.frontierCoords_publisher = self.create_publisher(Int8, 'frontierCoords', 10)
-        # TODO how to publish an array of coordinates?
+        # Create a publisher to the topic "frontierCoords", an array of coordinates relative to the map frame at where the frontiers are
+        # send array of tuples (x, y) as a one dimensional array
+        self.frontierCoords_publisher = self.create_publisher(Int16MultiArray, 'frontierCoords', 10)
 
     def listener_callback(self, msg):
         ''' ================================================ Occupancy Grid ================================================ '''
@@ -74,10 +78,12 @@ class FrontierSearchNode(Node):
         # get width and height of map
         iwidth = msg.info.width
         iheight = msg.info.height
+        resolution = msg.info.resolution
         # calculate total number of bins
         total_bins = iwidth * iheight
         # log the info
         # self.get_logger().info('Unmapped: %i Unoccupied: %i Occupied: %i Total: %i' % (occ_counts[0], occ_counts[1], occ_counts[2], total_bins))
+        self.get_logger().info('resolution %f m/cell' % resolution)
 
         # find transform to obtain base_link coordinates in the map frame
         # lookup_transform(target_frame, source_frame, time)
@@ -174,7 +180,7 @@ class FrontierSearchNode(Node):
             for j in range(width):
                 # Check if the current pixel is 1
                 if img_array[i, j] == 1:
-                    # Check the neighboring pixels
+                    # check for diagonals also so BFS with UP, DOWN, LEFT, RIGHT can colect all frontier pixels
                     for di in [-1, 0, 1]:
                         for dj in [-1, 0, 1]:
                             # Skip the current pixel
@@ -187,6 +193,82 @@ class FrontierSearchNode(Node):
                                     frontier.append((i, j))
                                     # self.get_logger().info(str("Pixel 1 at (" + str(i) + ", " + str(j) + ") is next to pixel 2 at (" + str(i + di) + ", " + str(j + dj) + ")" ))
         
+        # BFS to find all frontier groups
+        # Initialize the queue with the first pixel
+        queue = deque([frontier[0]])
+
+        # Initialize the set of visited pixels
+        visited = set([frontier[0]])
+
+        # Initialize the list of groups
+        groups = []
+
+        # Perform the BFS
+        while queue:
+            # Start a new group
+            group = []
+
+            # Process all pixels in the current group
+            while queue:
+                i, j = queue.popleft()
+                group.append((i, j))
+
+                # Check the neighboring pixels
+                for di in [-1, 0, 1]:
+                    for dj in [-1, 0, 1]:
+                        # Skip the current pixel and diagonal pixels
+                        if (di == 0 and dj == 0) or (di != 0 and dj != 0):
+                            continue
+
+                        # Check if the neighboring pixel is inside the image and in the frontier
+                        if 0 <= i + di < height and 0 <= j + dj < width and (i + di, j + dj) in frontier:
+                            # Check if the neighboring pixel has not been visited yet
+                            if (i + di, j + dj) not in visited:
+                                # Add the neighboring pixel to the queue and the set of visited pixels
+                                queue.append((i + di, j + dj))
+                                visited.add((i + di, j + dj))
+
+            # Add the group to the list of groups
+            groups.append(group)
+
+            # Find the next unvisited pixel in the frontier
+            for pixel in frontier:
+                if pixel not in visited:
+                    queue.append(pixel)
+                    visited.add(pixel)
+                    break
+               
+        # find frontier points if the frontier group has more than FRONTIER_THRESHOLD points        
+        # Initialize the list of frontier points
+        frontierPoints = []
+
+        # Iterate over the groups
+        for group in groups:
+            if len(group) < FRONTIER_THRESHOLD:
+                continue
+            
+            # Extract the x and y coordinates
+            x_coords = [x for x, y in group]
+            y_coords = [y for x, y in group]
+
+            # Calculate the middle x and y coordinates
+            middle_x = sorted(x_coords)[len(x_coords) // 2]
+            middle_y = sorted(y_coords)[len(y_coords) // 2]
+
+            # Add the median coordinates to the list of frontier points
+            frontierPoints.append((middle_x, middle_y))
+            
+        self.get_logger().info("frontierPoints:" + str(frontierPoints))
+        
+        # publish frontier points
+        # flatten the list of tuples into a single list
+        flattenedFrontierPoint = [item for tup in frontierPoints for item in tup]
+        
+        frontierPoint_msg = Int16MultiArray()
+        frontierPoint_msg.data = flattenedFrontierPoint
+        
+        self.frontierCoords_publisher.publish(frontierPoint_msg)        
+        
         # only do all this if plotting else its useless
         if self.show_plot:
             # Create a copy of the image array
@@ -196,8 +278,12 @@ class FrontierSearchNode(Node):
             # Iterate over the grayscale image to convert to colour
             for i in range(height):
                 for j in range(width):
-                    # if its a frontier give it cyan else Map the 0, 1, 2, 3 value to a grey scale  color value
-                    if (i, j) in frontier:
+                    # if its a frontier point give it pink
+                    # if its a frontier give it cyan 
+                    # else Map the 0, 1, 2, 3 value to a grey scale color value
+                    if (i, j) in frontierPoints:
+                        frontier_img_array[i, j] = [255, 0, 255] # pink
+                    elif (i, j) in frontier:
                         frontier_img_array[i, j] = [0, 255, 255]  # cyan
                     elif img_array[i, j] == 0:
                         frontier_img_array[i, j] = [0, 0, 0]  # Black
